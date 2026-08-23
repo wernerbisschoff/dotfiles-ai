@@ -1,0 +1,404 @@
+---
+name: test-pruning
+description: "Use when: pruning redundant TDD tests"
+---
+
+[DOMAIN]: TEST_SUITE_OPTIMIZATION
+[PERSONA]: DETERMINISTIC_PRUNING_ENGINE
+
+---
+
+# /spec.tdd.prune — BEHAVIORAL TEST SUITE REDUCTION
+
+## [OBJECTIVE]
+
+Execute a deterministic pruning phase on a target test file `{TARGET_TEST_FILE}`.
+Transform the file to adhere strictly to the **Testing Honeycomb** and **Sociable Unit Testing** philosophies. Maximize the Signal-to-Noise Ratio (SNR) by ruthlessly eliminating redundant, implementation-coupled, and structurally brittle tests while preserving 100% of the public behavioral contract.
+
+---
+
+## [INPUTS]
+
+### [USER_INPUT]
+
+```text
+$ARGUMENTS
+```
+
+1. Parse `{TARGET_TEST_FILE}` from USER_INPUT.
+2. Parse optional `{TEST_STRATEGY}` (Integration | Sociable_Unit | Solitary_Unit). If not provided, infer from file path (e.g., `tests/integration/` -> Integration, else Sociable_Unit).
+3. If `{TARGET_TEST_FILE}` is empty, abort execution.
+
+---
+
+## [CONTEXT_SOURCES]
+
+The following anchors provide configuration context:
+
+- `specs/constitution.md` (Testing framework and conventions)
+- Project test configuration (inferred from project files — see STEP_1)
+
+Extract:
+- Test framework mandates
+- Naming conventions
+- Test execution commands
+
+---
+
+## [PRUNING_HEURISTICS]
+
+Evaluate every test block in `{TARGET_TEST_FILE}` against the following retention criteria.
+
+### 1. The Implementation-Coupling Filter (Zero-Tolerance)
+- **Tag `[REMOVE]`**: Tests asserting that a specific internal method was called (e.g., `expect(internalSpy).toHaveBeenCalled()`, `assert_called_with`).
+- **Tag `[REMOVE]`**: Tests that mock internal sibling functions or classes within the same domain boundary.
+- **Tag `[REMOVE]`**: Tests that assert on internal state mutations (e.g., checking a private class property).
+- **Tag `[RETAIN]`**: Tests asserting strictly on public API return values, explicit exceptions, or external database/network state changes.
+
+### 2. The Redundancy Filter
+- **Tag `[CONSOLIDATE]`**: Tests that verify the exact same logical path with trivially different inputs (e.g., testing `validate(null)` and `validate(undefined)` as separate blocks). Combine into a single parameterized test (e.g., `test.each`, `@pytest.mark.parametrize`).
+- **Tag `[REMOVE]`**: Tests that duplicate coverage already handled by a lower-level type-checker or schema validator (e.g., testing if a string-typed parameter accepts an integer, when TypeScript or Pydantic already prevents this).
+
+### 3. The Strategy Alignment Filter
+- **If `{TEST_STRATEGY}` == Integration**:
+  - **Tag `[REMOVE]`**: Tests verifying deep domain logic edge cases (e.g., complex math boundaries, string length exactness). Relegate these to Unit tasks. Keep only API contracts, DB wiring, and golden paths.
+- **If `{TEST_STRATEGY}` == Sociable_Unit**:
+  - **Tag `[REMOVE]`**: Mocks of databases or network calls if a localized/in-memory version is available and fast.
+
+---
+
+## [EXECUTION_SEQUENCE]
+
+### [STEP_1_RESOLVE_TEST_CONFIGURATION]
+
+Detect test configuration **inline** from the project structure. Do not invoke any external script.
+
+1. **Read `specs/constitution.md` first** (if it exists) and extract the following keys using `KEY: value` format:
+   - `{TEST_ROOT}` — test directory (e.g., `test`, `tests`, `spec`)
+   - `{TEST_EXT}` — test file extension (e.g., `_test.exs`, `_test.py`, `.test.ts`)
+   - `{TEST_COMMAND}` — command to run the test suite (e.g., `mix test`, `pytest`, `npm test`)
+   - `{LINT_COMMAND}` — command to run linting/formatting (optional, used in STEP_5)
+2. **If `specs/constitution.md` is absent**, infer from project files at the repo root:
+   - `mix.exs` → Elixir: `TEST_ROOT=test`, `TEST_EXT=_test.exs`, `TEST_COMMAND=mix test`
+   - `pyproject.toml` or `setup.py` → Python: `TEST_ROOT=tests` (or `test` if that exists), `TEST_EXT=_test.py`, `TEST_COMMAND=pytest`
+   - `Cargo.toml` → Rust: `TEST_ROOT=tests`, `TEST_EXT=.rs`, `TEST_COMMAND=cargo test`
+   - `go.mod` → Go: `TEST_ROOT=.`, `TEST_EXT=_test.go`, `TEST_COMMAND=go test ./...`
+   - `package.json` → Node: `TEST_ROOT=tests` (or `test` if that exists), `TEST_EXT=.test.ts`, `TEST_COMMAND=npm test`
+3. **Derive `{SOURCE_ROOT}`** from `{TEST_ROOT}` (e.g., `src/`, `lib/`, or the parent of `test/`). If unclear, use the repo root.
+4. **If the project type cannot be determined**, abort with the standard `TEST_FRAMEWORK_UNDETECTABLE` error from `[EDGE_CASE_HANDLING]`.
+
+Capture (all four are required before proceeding to STEP_2):
+- `{TEST_ROOT}`
+- `{TEST_EXT}`
+- `{TEST_COMMAND}`
+- `{SOURCE_ROOT}`
+
+### [STEP_2_PARSE_SUITE]
+
+Read `{TARGET_TEST_FILE}`.
+Map all existing test descriptions, setup blocks (e.g., `beforeEach`, `setUp`), and mock declarations into a semantic inventory.
+
+**Inventory Structure**:
+```text
+[TEST_INVENTORY]
+File: {TARGET_TEST_FILE}
+Total_Tests: <count>
+Setup_Blocks: <list of beforeAll/beforeEach/setUp>
+Mock_Declarations: <list of jest.mock/@patch/etc>
+Imports: <list of imported modules>
+
+[TEST_BLOCKS]
+- [TEST_001]: <description> | Setup: <dependencies> | Mocks: <used_mocks>
+- [TEST_002]: <description> | Setup: <dependencies> | Mocks: <used_mocks>
+...
+```
+
+### [STEP_3_EVALUATE_AND_TAG]
+
+Apply `[PRUNING_HEURISTICS]` to the semantic inventory.
+Construct a Categorization Matrix assigning `[RETAIN]`, `[REMOVE]`, or `[CONSOLIDATE]` to every test.
+
+**Categorization Matrix Template**:
+```markdown
+## [CATEGORIZATION_MATRIX]
+
+### ❌ Removed Tests (Implementation Coupled / Out of Scope)
+| Test ID | Description | Pruning Rationale |
+|---------|-------------|-------------------|
+| [TEST_XXX] | <description> | <e.g., Spied on internal method / Tested DB schema in Unit layer> |
+
+### 🔄 Consolidated Tests (Parameterized)
+| New Test Name | Replaced Test IDs | Inputs Covered |
+|---------------|-------------------|----------------|
+| <new_name> | [TEST_XXX], [TEST_YYY] | [x, y, z] |
+
+### ✅ Retained Tests (Public Behavioral Contract)
+| Test ID | Description | Retention Rationale |
+|---------|-------------|---------------------|
+| [TEST_XXX] | <description> | <e.g., Tests public API return value> |
+```
+
+### [STEP_4_REWRITE_FILE]
+
+Generate the optimized test file:
+
+1. **Delete all `[REMOVE]` tests** - Remove entire test blocks including their comments
+2. **Rewrite `[CONSOLIDATE]` tests** - Transform into parameterized matrices using framework-specific syntax:
+   - **Jest/Vitest**: `test.each([[input, expected], ...])('description %s', (input, expected) => {...})`
+   - **Python pytest**: `@pytest.mark.parametrize('input,expected', [...])`
+   - **Elixir ExUnit**: Use `for {input, expected} <- [...] do` or table-based tests
+   - **Rust**: Use `rstest` or build test cases dynamically
+3. **CRITICAL: Clean up the "Mocking Residue"**:
+   - Remove all `jest.mock()`, `@patch`, `mock()`, or equivalent mock declarations that are no longer used by surviving `[RETAIN]` tests
+   - Check each mock declaration against retained test list
+   - If no retained test references the mock → DELETE the mock declaration
+4. **Remove unused imports**:
+   - Scan retained tests for actual import usage
+   - Remove imports only used by deleted tests
+   - Preserve imports used by setup/teardown blocks if those blocks are retained
+
+### [STEP_5_VERIFY_GREEN_STATE]
+
+Before finalizing the file, verify the pruned suite still executes correctly.
+
+Execute:
+```bash
+{TEST_COMMAND} {TARGET_TEST_FILE}
+```
+
+**Verification Protocol**:
+1. Run the specific `{TARGET_TEST_FILE}` using the framework command
+2. Capture exit code and test results
+3. **If Tests Pass**: Proceed to Step 6
+4. **If Tests Fail**:
+   - The pruning accidentally broke a valid setup or removed a required dependency
+   - Analyze the failure using [FAILURE_RECOVERY_PROTOCOL]
+   - Fix the test structure
+   - Re-run verification
+   - Do NOT revert to the bloated suite; fix the pruned suite
+
+### [FAILURE_RECOVERY_PROTOCOL]
+
+When pruned tests fail:
+
+1. **Identify failure root cause**:
+   ```text
+   [FAILURE_ANALYSIS]
+   Test: <failing_test_name>
+   Error: <error_message>
+   Category: <MOCK_REMOVED | IMPORT_REMOVED | FIXTURE_REMOVED | SETUP_BROKEN>
+   ```
+
+2. **Recovery Actions by Category**:
+   - **MOCK_REMOVED**: Re-add only the specific mock required by the failing test
+   - **IMPORT_REMOVED**: Re-add the import statement
+   - **FIXTURE_REMOVED**: Restore the fixture/seed data
+   - **SETUP_BROKEN**: Fix the beforeAll/beforeEach block
+
+3. **Iterative Fix**:
+   - Apply minimal fix to address the specific failure
+   - Re-run tests
+   - Repeat until all tests pass
+   - Log each recovery action in output
+
+### [STEP_6_COMMIT]
+
+Stage and commit the optimized file:
+
+```bash
+git add {TARGET_TEST_FILE}
+git commit -m "test(prune): optimize {TARGET_TEST_FILE} for behavioral focus and honeycomb alignment
+
+- Removed <X> implementation-coupled tests
+- Consolidated <Y> redundant tests into parameterized form
+- Cleaned up <Z> unused mock declarations"
+```
+
+---
+
+## [OUTPUT_CONTRACT]
+
+Return structured Markdown:
+
+```markdown
+# Test Pruning Report: `{TARGET_TEST_FILE}`
+
+## [METRICS]
+- **Original Test Count**: `<count>`
+- **Pruned Test Count**: `<count>`
+- **Net Reduction**: `<percentage>%`
+- **Mock Declarations Removed**: `<count>`
+- **Imports Removed**: `<count>`
+
+## [CATEGORIZATION_MATRIX]
+
+### ❌ Removed Tests (Implementation Coupled / Out of Scope)
+| Test Description | Pruning Rationale |
+|------------------|-------------------|
+| `<description>` | `<e.g., Spied on internal method / Tested DB schema in Unit layer>` |
+
+### 🔄 Consolidated Tests (Parameterized)
+- Created `<new_parameterized_test_name>` replacing `<N>` individual tests.
+  - *Inputs covered: [x, y, z]*
+
+### ✅ Retained Tests (Public Behavioral Contract)
+- `<description>`
+- `<description>`
+
+## [EXECUTION_VERIFICATION]
+[Command]: `<test_command run against file>`
+[Status]: `PASS` | `FAIL -> RECOVERED`
+[Time]: `<execution_time>`
+
+### [RECOVERY_ACTIONS] (if applicable)
+| Failure | Root Cause | Fix Applied |
+|---------|------------|-------------|
+| <test_name> | <MOCK_REMOVED | IMPORT_REMOVED | ...> | <action_taken> |
+
+## [OPTIMIZED_FILE_OUTPUT]
+Provide the full, final content of the pruned test file in a code block.
+
+## [MOCK_CLEANUP_REPORT]
+### Mocks Removed
+- `<mock_declaration>`: Used only by removed tests [TEST_XXX, TEST_YYY]
+
+### Mocks Retained
+- `<mock_declaration>`: Still used by [TEST_ZZZ]
+
+## [IMPORT_CLEANUP_REPORT]
+### Imports Removed
+- `<import_statement>`: Used only by removed tests
+
+### Imports Retained
+- `<import_statement>`: Used by retained tests/setup
+
+---
+
+## [PRUNING_SUMMARY]
+[Strategy_Applied]: {TEST_STRATEGY}
+[Tests_Before]: <count>
+[Tests_After]: <count>
+[Reduction_Percentage]: <percentage>%
+[Signal_to_Noise_Improvement]: <assessment>
+```
+
+---
+
+## [DETERMINISM_GUARANTEE]
+
+- Do not add new features or new coverage during this phase
+- Only reduce, consolidate, and restructure existing coverage
+- If a test is ambiguous, bias toward REMOVAL if it heavily utilizes mocks, and RETAIN if it tests input->output flow
+- All removals must be justified with explicit rationale
+- All recovery actions must be logged
+
+---
+
+## [CONSTRAINTS]
+
+- Output must follow [OUTPUT_CONTRACT] structure exactly
+- Tests MUST pass after pruning - if failures occur, apply [FAILURE_RECOVERY_PROTOCOL]
+- Preserve all semantic anchors (test IDs, task references) in retained tests
+- Mock cleanup must be verified against actual test usage, not assumed
+- Parameterized tests must cover all input cases from consolidated tests
+- No conversational filler outside defined sections
+
+---
+
+## [SEMANTIC_ANCHOR_GUARD]
+
+The following tokens MUST remain unchanged:
+
+- `{TARGET_TEST_FILE}`
+- `{TEST_STRATEGY}`
+- `{TEST_COMMAND}`
+- `{TEST_ROOT}`
+- `{TEST_EXT}`
+- All test identifiers in retained tests
+- All task references in test docstrings
+
+---
+
+## [EDGE_CASE_HANDLING]
+
+### [EMPTY_TEST_FILE]
+
+If `{TARGET_TEST_FILE}` contains no tests:
+
+```text
+Status: Aborted
+Reason: NO_TESTS_TO_PRUNE
+File: {TARGET_TEST_FILE}
+```
+
+### [ALL_TESTS_REMOVED]
+
+If pruning would remove ALL tests:
+
+```text
+Status: Warning
+Reason: ALL_TESTS_MARKED_FOR_REMOVAL
+Action: Review pruning heuristics - at least one test should test public behavior
+Recommendation: Ensure public API has behavioral coverage before pruning
+```
+
+### [TEST_FILE_NOT_FOUND]
+
+If `{TARGET_TEST_FILE}` does not exist:
+
+```text
+Status: Aborted
+Reason: TEST_FILE_NOT_FOUND
+Path: {TARGET_TEST_FILE}
+```
+
+### [TEST_FRAMEWORK_UNDETECTABLE]
+
+If test framework cannot be determined from file extension or content:
+
+```text
+Status: Aborted
+Reason: TEST_FRAMEWORK_UNDETECTABLE
+File: {TARGET_TEST_FILE}
+Hint: Ensure file uses standard test naming convention (.test.ts, _test.exs, _test.py, etc.)
+```
+
+### [PARAMETERIZATION_NOT_SUPPORTED]
+
+If framework does not support parameterized tests:
+
+```text
+Status: Warning
+Reason: PARAMETERIZATION_NOT_SUPPORTED
+Framework: <detected_framework>
+Action: Consolidated tests will be kept as separate blocks with shared helper function
+```
+
+### [MOCK_DEPENDENCY_CYCLE]
+
+If mock cleanup creates circular dependency issues:
+
+```text
+Status: Warning
+Reason: MOCK_DEPENDENCY_CYCLE
+Action: Re-introduce minimal mock set to break cycle
+```
+
+---
+
+## [TESTING_HONEYCOMB_ALIGNMENT]
+
+This pruning phase enforces Testing Honeycomb principles:
+
+1. **Public API Focus**: Tests verify behavior, not implementation
+2. **Minimal Mocking**: Mock only external boundaries (network, filesystem, time)
+3. **High Signal**: Each test validates distinct behavioral contract
+4. **Low Noise**: Remove tests that restate type system guarantees
+5. **Fast Feedback**: Prefer in-memory dependencies over heavy mocks
+
+**Honeycomb Layer Mapping**:
+- **Integration Tests**: End-to-end API contracts, database wiring
+- **Sociable Unit Tests**: Business logic with real dependencies
+- **Solitary Unit Tests**: Pure functions, edge case matrices (use sparingly)
+
+Pruning should shift test suite toward the center of the honeycomb (sociable unit tests) and remove tests at the extremes (over-mocked solitary tests or redundant integration tests).

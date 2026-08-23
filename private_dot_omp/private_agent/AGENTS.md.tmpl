@@ -1,0 +1,90 @@
+{{ template "AGENTS.md.tmpl" . }}
+---
+
+# OMP Tool Guidance
+
+> **OMP override (supersedes the shared `exploration_gate` above):** the claim that `codebase_index_*` tools "are native package tools, not MCP tools" is wrong in OMP sessions. In OMP they may appear as native names **or** only as `xd://mcp__codebase_index_*` MCP devices — see the **Codebase Index Package** section at the end of this file for the correct invocation forms and troubleshooting.
+
+## Approval Modes
+
+OMP uses `tools.approvalMode` from `~/.omp/agent/config.yml`. Valid values:
+
+- `always-ask` — every tool call prompts (most conservative)
+- `write` — read-only tools auto-allow, write tools prompt (default)
+- `yolo` — all tool calls auto-allow (least conservative)
+
+CLI override: `--approval-mode <value>`. `--auto-approve` is shorthand for `yolo`. Per-tool overrides are not supported in the config — promote or demote the whole mode for the session.
+
+When in doubt, **prefer `write` over `yolo`** for non-interactive workflows. The agent should still refuse obviously destructive operations (matching the `deny` patterns in `permissions.ts` for plain Pi) and surface them to the user.
+
+## Extensions
+
+OMP loads extensions from `~/.omp/agent/extensions/` (user) and `.omp/extensions/` (project, after trust). They use the same `@oh-my-pi/pi-coding-agent` API as plain Pi — `omp.on("tool_call", …)`, `omp.registerCommand(…)`, etc. Treat OMP extensions as code, not as data: review before installing.
+
+## Bundled Subagents
+
+`omp agents unpack` exports bundled task agents to `~/.omp/agent/agents/`. Use them via the `task` tool the same way as plain Pi subagents. Pass `--project` to scope to the current working directory.
+
+## LSP Servers in TDD (Red-Green-Refactor)
+
+For repos in Rust, Elixir, Python, or TypeScript, **LSP is mandatory during Red-Green-Refactor cycles** — never default to grep/text edits when a language server can answer. LSP gives you symbol-aware navigation, refactors, and diagnostics that text tools silently miss (shadowed bindings, re-exports, cross-file callsites).
+
+**Server availability check (do this first in the cycle):**
+
+    lsp(action: "status")
+
+If a server is running for the repo's primary language, lean on it for every step below. If no server is available, fall back to `grep` / `read` / `ast_grep` and note the gap — don't pretend LSP coverage exists.
+
+**Red — write the failing test first:**
+- `lsp symbols` (workspace, `file: "*"`, query: test-file basename) to confirm the test target exists or find its canonical location.
+- `lsp definition` to land on the production symbol under test before writing assertions.
+- `lsp hover` to lock the type/signature contract the test must enforce.
+
+**Green — make it pass with the smallest change:**
+- `lsp references` before editing any exported symbol — missed callsites are bugs.
+- `lsp diagnostics` (workspace or file glob) after each edit; fix errors before adding the next test.
+- `lsp code_actions` for quick-fixes, import resolution, and server-known refactors before hand-editing.
+
+**Refactor — preserve behavior:**
+- `lsp rename` / `rename_file` for cross-file renames — NEVER `ast_edit` or `sed` for these.
+- `lsp code_actions` with `query: "source.organizeImports"` (or similar) before committing.
+- `lsp diagnostics` once more on touched files; zero warnings before yielding.
+
+**Rules:**
+- A LSP server "available" means `lsp status` reports it active for the repo's language. Partial coverage (e.g. TS but not Rust in a mixed repo) still binds for the covered language.
+- Diagnostics and `code_actions` are LSP-native; don't reimplement them with `bash`.
+- When LSP disagrees with `grep`/`read`, trust LSP — it sees shadowing and re-exports text tools can't.
+
+## Codebase Index Package
+
+`open-codebase-index` provides the codebase search tools, but how they appear in this session's active tool list depends on how the plugin was mounted. **Do not assume a single form.** Check the active tool list at session start before calling any of these.
+
+### Invocation forms
+
+Two forms exist; pick the one that matches what your session actually exposes.
+
+**Form A — native tool names** (when the plugin loads them directly into the active tool list):
+Call `index_status`, `codebase_context`, `codebase_peek`, `codebase_search`, `implementation_lookup`, `call_graph`, `call_graph_path`, `index_codebase`, `find_similar`, `code_communities`, `index_health_check`, `pr_impact` as ordinary tool calls. Slash-command variants `/index [force|estimate|verbose]` and `/status` also resolve.
+
+**Form B — `xd://` MCP device** (when only the MCP form is mounted, as in this session):
+Each tool is reachable by writing its JSON args object as `content` to `xd://mcp__codebase_index_<op>` via the `write` tool. For example:
+```
+write(path: "xd://mcp__codebase_index_index_status", content: "{}")
+write(path: "xd://mcp__codebase_index_codebase_context", content: json.dumps({"query": "...", "tokenBudget": 1200}))
+write(path: "xd://mcp__codebase_index_index_codebase", content: json.dumps({"force": true}))
+```
+Read the schema at `xd://mcp__codebase_index_<op>` before the first call (some require `query`; `index_codebase` accepts `{force, estimateOnly, verbose}`).
+
+### When to use which
+
+- If `index_status` (or `xd://mcp__codebase_index_index_status`) is callable as a native tool, use Form A — it's faster and keeps the call inline with other tool calls.
+- If the session exposes only the `xd://mcp__codebase_index_*` devices, use Form B. Calling the bare native name returns "not found"; calling the device path with the wrong name also returns "not found" — confirm the exact spelling against the active tool list or the `xd://` device inventory.
+
+Prefer `codebase_context` first for repository questions. Run `index_status` when readiness is unknown; run `index_codebase` when the index is missing or stale. Use `force: true` only for a full rebuild or provider/model incompatibility.
+
+### Troubleshooting
+
+- **`index_status` reports "Automatic indexing failed"** — the embedding provider is unreachable. Common cause: a local custom provider (e.g. `custom/qwen3-embedding:0.6b`) whose endpoint is down. Check the provider's process/URL, then run `index_codebase(force: true)` (or `xd://mcp__codebase_index_index_codebase` with `{"force": true}`) once the provider is healthy.
+- **Compatibility warning: stored index uses v1 checkout-absolute paths, project requires portable v2** — paths inside the index are stale relative to the current checkout. `index_codebase(force: true)` rebuilds with v2 path storage. A failed rebuild that returns "No result provided" usually means the embedding provider failed again; fix the provider before retrying.
+- **`index_status` succeeds but search returns empty** — the index exists but the target files changed since the last build. Run `index_codebase` (incremental) before searching again.
+- **Parallel batches return empty results alongside an embedding failure** — a single transient failure can swallow the batch. Re-issue the failed calls individually.

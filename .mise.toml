@@ -1,0 +1,55 @@
+# Mise configuration for the dotfiles-ai chezmoi repository
+# Run `mise run <task>` to execute tasks
+
+[env]
+_.file = ".env"
+
+[settings]
+experimental = true
+
+[tasks.apply]
+description = "Apply chezmoi dotfiles (AI scope)"
+run = "chezmoi -S ~/.local/share/chezmoi-ai apply -v"
+
+[tasks.diff]
+description = "Show chezmoi diff (AI scope)"
+run = "chezmoi -S ~/.local/share/chezmoi-ai diff"
+
+[tasks.status]
+description = "Show chezmoi status (AI scope)"
+run = "chezmoi -S ~/.local/share/chezmoi-ai status"
+
+[tasks.edit]
+description = "Edit a chezmoi source file"
+run = "chezmoi -S ~/.local/share/chezmoi-ai edit"
+
+[tasks.verify]
+description = "Verify chezmoi configuration"
+run = "chezmoi -S ~/.local/share/chezmoi-ai verify"
+
+[tasks.lint]
+description = "Lint shell scripts"
+run = "shellcheck dot_claude/skills/*/executable_*.sh.tmpl run_once_after_*.sh run_after_setup.sh"
+
+[tasks.format]
+description = "Format shell scripts"
+run = "shfmt -w dot_claude/skills/*/executable_*.sh.tmpl run_once_after_*.sh"
+
+[tasks.fix]
+description = "Auto-fix shell script formatting and re-lint"
+# Format first (auto-fixer), then lint to verify. The shfmt step uses `|| true` so a
+# pre-existing parse error on one file does not abort the whole task — the user still
+# sees both outputs and can address the parse error separately.
+run = "shfmt -w dot_claude/skills/*/executable_*.sh.tmpl run_once_after_*.sh || true; shellcheck dot_claude/skills/*/executable_*.sh.tmpl run_once_after_*.sh"
+
+[tasks.install]
+description = "Install the AI toolchain (mise takes version pins from [tools])"
+run = "mise install"
+
+[tools]
+# AI agent CLIs. Declared here (project) and installed globally by
+# run_once_after_install-ai-mise-tools.sh (shims: pi, herdr, hunk).
+chezmoi = "2.70.3"
+pi = "latest"
+herdr = "latest"
+hunk = "latest"

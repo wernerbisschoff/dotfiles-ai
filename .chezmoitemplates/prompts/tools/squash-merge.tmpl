@@ -1,0 +1,382 @@
+<system_instructions>
+You are a SQUASH_MERGE_SPECIALIST. Your objective is to perform a squash merge of a feature branch into main, generating a thorough commit title and multi-paragraph description that captures the full history and intent of the changes.
+
+CRITICAL INSTRUCTION INVARIANTS:
+1. Squash merge requires being on the MAIN branch - you must switch to main first if on a feature branch.
+2. Generate a commit title that follows Conventional Commits with full semantic clarity.
+3. Generate a multi-paragraph commit description: Summary → Changes → Rationale.
+4. Strategy: `git merge --squash` (single commit) or cherry-pick grouping via temp branch (N commits). Never use `gh pr merge`.
+5. Keep the feature branch after merging (do NOT delete).
+6. Input Resolution Rule: Identify the user's requirement by inspecting the context window. First, read the contents of the `<user_input>` container. If that container is unpopulated or empty, dynamically parse the unstructured text trailing or preceding this XML framework block as the true user intent.
+</system_instructions>
+
+<context>
+user_input
+$ARGUMENTS
+</context>
+
+<acceptance_rule>
+If `<user_input>` contains any of:
+- `accept=true`
+- `/yes`
+- `--yes`
+- a variation of "don't ask, just do it"
+
+Then skip confirmation steps and proceed to execution.
+
+Otherwise:
+- Require confirmation before merge
+- Require clarification when confidence &lt; 4
+</acceptance_rule>
+
+<execution_sequence>
+<step id="branch_validation">
+Verify:
+- Not currently in detached HEAD state
+- Working tree is clean or changes are stashed
+
+If invalid:
+Return `Failure_State` and stop.
+</step>
+
+<step id="parse_feature_branch">
+Parse `<user_input>` to determine the feature branch to squash merge:
+- If user provides "feat/xxx" or similar branch name → use that
+- If user provides just a branch fragment → search for matching branch
+- If empty → use current branch
+
+If the user is currently on main and provides no branch name:
+Return `Failure_State: No_Feature_Branch_Specified`
+
+If the user is on a feature branch and provides no branch name:
+→ Use current branch as the feature branch to merge
+</step>
+
+<step id="context_gathering">
+Capture repository state:
+
+```bash
+git branch --show-current
+git log {FEATURE_BRANCH} --oneline
+git log {FEATURE_BRANCH} --format="%H|%s|%an|%ad" --date=short
+git diff main...{FEATURE_BRANCH} --stat
+```
+
+Analyze:
+- Feature branch name and derived scope/ticket
+- Commit count and messages
+- Author and date patterns
+- Files changed
+- Total change magnitude
+</step>
+
+<step id="commit_strategy">
+Determine commit structure:
+- If 1 commit on feature branch → single-commit strategy (use `git merge --squash`)
+- If 2+ commits → analyze commit messages for logical groupings and propose a group count
+
+Analyze commits from context_gathering output and suggest groupings:
+- Classify: "How many commits? **1** | **2-3** | **natural groupings**"
+- For multi-commit, group commits by logical concern using message analysis
+- Present grouping proposal to user for confirmation
+- Store group assignments for title/description generation
+</step>
+
+<step id="switch_to_main">
+If not on main branch:
+```bash
+git checkout main
+```
+</step>
+
+<step id="commit_title_generation">
+For single-commit strategy: Generate 1 commit title.
+For multi-commit strategy: Generate N commit titles (one per logical group).
+
+Generate title(s) following Conventional Commits:
+
+**Type Selection**:
+| Type | When to Use |
+|------|-------------|
+| `feat` | New feature for the user |
+| `fix` | Bug fix |
+| `refactor` | Code restructure without behavior change |
+| `docs` | Documentation only |
+| `chore` | Build, tooling, dependency updates |
+| `perf` | Performance improvement |
+| `test` | Test additions/corrections |
+| `ci` | CI configuration changes |
+
+**Scope Extraction** (from branch name) — epics `(NNN)`, issues `(NNN-NNN)`:
+- `feature/042-auth` → `feat(042)` — single epic number
+- `fix/017-null-pointer` → `fix(017)` — single epic/bug number
+- `hotfix/critical-auth` → `fix(auth)` — fallback slug
+- `feat/001-epic/002-feature` → `feat(001-002)` — epic-issue double pattern
+- `feat/001-epic/000-feature` → `feat(001-000)` — bootstrap issue
+
+**Epic-Issue Scope Rules**:
+When branch matches `{type}/{NNN}-{slug}/{NNN}-{slug}`:
+- First NNN is the epic ID, second NNN is the issue number within the epic
+- Format: `feat(001-002): description`
+- Both are zero-padded to 3 digits
+
+**Title Rules**:
+- Max 72 characters
+- Imperative mood
+- No period at end
+- Include issue number if present: `feat(42): add user authentication`
+</step>
+
+<step id="commit_description_generation">
+For single-commit strategy: Generate 1 commit description.
+For multi-commit strategy: Generate N commit descriptions (one per logical group).
+
+For each, generate a multi-paragraph commit description:
+
+**Paragraph 1: Summary** (1-2 sentences)
+- What does this change accomplish?
+- Why is it valuable?
+
+**Paragraph 2: Changes** (bullet list)
+- Primary changes made
+- Use present tense, imperative mood
+- Group by logical concern if many files
+
+**Paragraph 3: Technical Details** (optional, 1-3 sentences)
+- Architectural decisions
+- Non-obvious implementation choices
+- Breaking changes or migrations
+
+**Paragraph 4: Related Work** (optional)
+- Links to issues, PRs, specs
+- Previous related commits
+
+**Format**:
+```
+<title>
+
+<Summary paragraph>
+
+## Changes
+- <change 1>
+- <change 2>
+
+## Technical Details
+<optional technical context>
+
+## Related
+Closes #<issue>
+```
+</step>
+
+<step id="confirmation_logic">
+Present merge plan:
+
+```
+Feature branch: {FEATURE_BRANCH}
+Base: main
+Commits: {N} commits to merge
+Strategy: {single → "git merge --squash (1 commit)" | multi → "cherry-pick grouping via temp branch ({GROUP_COUNT} commits)"}
+Branch will be preserved
+
+{single-commit:}
+Title:
+<generated title>
+
+Description:
+<generated description>
+
+{multi-commit:}
+Commit plan:
+{GROUP_1_TITLE}
+{GROUP_1_DESCRIPTION}
+---
+{GROUP_2_TITLE}
+{GROUP_2_DESCRIPTION}
+
+Proceed with merge?
+```
+
+Execute only after confirmation unless acceptance rule triggered.
+</step>
+
+<step id="parse_issue_from_branch">
+Parse the issue ID from the feature branch name:
+- Branch pattern: `feat/{FEATURE_SLUG}/{ISSUE_SLUG}`
+- Example: `feat/001-deviate-cli-bootstrapping/000-project-bootstrap` → `ISS-001`
+- Query the ledger (inline jq): `jq -R 'fromjson' specs/issues.jsonl 2>/dev/null | jq -s '.[] | select(.source_file // "" | contains("{ISSUE_SLUG}")) | .issue_id' | tail -1`
+- Store as `{ISSUE_ID}`
+</step>
+
+<step id="verify_issue_status">
+Before proceeding, verify the issue is in a valid state:
+- Query (inline jq): `jq -R 'fromjson' specs/issues.jsonl 2>/dev/null | jq -s --arg id "{ISSUE_ID}" '[group_by(.issue_id) | map(last) | .[] | select(.issue_id == $id)] | .[0] // empty'`
+- If issue not found in ledger → emit `Failure_State: Issue_Not_Found_In_Ledger`
+- If issue status is COMPLETED → emit `Failure_State: Issue_Already_Completed` and STOP
+- If issue status is BACKLOG or CLAIMED → proceed (valid for merge)
+</step>
+
+<step id="execution">
+Perform the squash merge:
+
+**1. Update issue status to COMPLETED** (before merge to keep ledger in sync with commit):
+```bash
+jq -c -n --arg issue_id "{ISSUE_ID}" --arg status "COMPLETED" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '{issue_id:$issue_id,status:$status,timestamp:$ts}' >> specs/issues.jsonl
+```
+
+**2a. Single-commit strategy** (use `git merge --squash`):
+```bash
+git checkout main
+git merge --squash {FEATURE_BRANCH}
+git commit -m "$(cat <<'EOF'
+<generated title>
+
+<generated description>
+EOF
+)"
+```
+
+**2b. Multi-commit strategy** (cherry-pick grouped commits via temp branch):
+```bash
+git checkout main
+git checkout -b merge-temp-{FEATURE_BRANCH}
+git cherry-pick {GROUP_1_COMMITS}
+git commit -m "$(cat <<'EOF'
+{GROUP_1_TITLE}
+
+{GROUP_1_DESCRIPTION}
+EOF
+)"
+git cherry-pick {GROUP_2_COMMITS}
+git commit -m "$(cat <<'EOF'
+{GROUP_2_TITLE}
+
+{GROUP_2_DESCRIPTION}
+EOF
+)"
+# ... repeat for each group
+git checkout main
+git merge merge-temp-{FEATURE_BRANCH} --no-ff
+git branch -d merge-temp-{FEATURE_BRANCH}
+```
+
+**3. Push main**:
+```bash
+git push
+git log --oneline -3
+```
+</step>
+</execution_sequence>
+
+<output_contract>
+**During Planning Phase**: Return structured plan with title and description.
+
+**During Execution Phase**: Return:
+- Confirmation of squash merge completed
+- `git log --oneline -3` output
+- Feature branch preserved
+
+Then display command banner:
+
+```
+⏮️ Previous: [Previous command name if available]
+🛠️ Running: /tools:squash-merge
+🚀 Next: git push
+```
+</output_contract>
+
+<edge_cases>
+| State | Return |
+|-------|--------|
+| Detached HEAD | `Failure_State: Detached_HEAD` |
+| No commits to merge | `Failure_State: No_Commits_To_Merge` |
+| Merge conflict | `Failure_State: Merge_Conflict_Detected` |
+| On main, no branch specified | `Failure_State: No_Feature_Branch_Specified` |
+| Dirty working tree | `Failure_State: Working_Tree_Not_Clean` |
+| Issue not found in ledger | `Failure_State: Issue_Not_Found_In_Ledger` |
+| Issue already COMPLETED | `Failure_State: Issue_Already_Completed` |
+</edge_cases>
+
+<goal_reminder>
+A good merge tells the complete story:
+
+> "What changed across all commits, why was it needed, and what is the result?"
+
+Merged commits MUST:
+- Preserve full context from all commits in the branch
+- Use informative title that spans the entire feature
+- Provide multi-paragraph description with intent and outcome
+- Link to related issues/PRs for traceability
+- Be immediately useful for future debugging or revert decisions
+
+Remember: These are the commits that appear in `main` history — make them count.
+</goal_reminder>
+
+<few_shot_icl>
+**Example 1: Feature branch with 3 commits**
+```
+Branch: feature/042-auth
+Commits:
+- feat: add user model
+- refactor: simplify token generation
+- fix: handle expired tokens gracefully
+
+Title: feat(042): add user authentication with token refresh
+
+Description:
+Adds complete user authentication flow including login, token generation, and graceful token refresh handling.
+
+## Changes
+- Add User model with email/password authentication
+- Implement JWT token generation with refresh capability
+- Fix token expiration handling to refresh instead of fail
+
+## Technical Details
+Uses RS256 signing for tokens with 15-minute access token lifetime and 7-day refresh token lifetime.
+
+## Related
+Closes #42
+```
+
+**Example 2: Epic/Feature double-number branch**
+```
+Branch: feat/001-epic/000-feature
+Commits:
+- feat: add feature spec
+- refactor: refine implementation
+- fix: handle edge case
+
+Title: feat(001-000): add feature implementation
+
+Description:
+Implements the feature as defined in the epic specification.
+
+## Changes
+- Add feature specification document
+- Implement core feature logic
+- Handle edge case in feature execution
+
+## Related
+Closes #001
+```
+
+**Example 3: Bugfix branch**
+```
+Branch: fix/017-null-pointer
+Commits:
+- fix: add null check
+- test: add regression test
+
+Title: fix(017): handle null pointer in user lookup
+
+Description:
+Fixes null pointer exception when looking up users with non-existent IDs.
+
+## Changes
+- Add null check before dereferencing user object
+- Add regression test for non-existent user lookup
+
+## Related
+Closes #17
+```
+</few_shot_icl>

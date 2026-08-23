@@ -1,0 +1,74 @@
+# AGENTS.md
+
+<exploration_gate>
+Use the cheapest reliable tool first. Skip this gate when the task does not involve code exploration (e.g. file edits, conversation, file ops, running commands). The `open-codebase-index` package provides native tools. Do not route them through MCP.
+
+# Decision question — answer this first
+
+Do I need to find code I don't already have a path to?
+
+- **No** — I have the file, I have the symbol, I have a command to run, the task is editing/conversation/file-ops/running commands. Skip this gate. Go straight to `read`, `edit`, `bash`, etc. Do NOT call `index_status` to be diligent; that's an index call without a search to follow.
+- **Yes** — I need to locate unfamiliar code by behavior, symbol, or dependency. The tools below apply.
+
+# When exploration is needed
+
+1. `index_status` — confirm the index is healthy. If it is missing or stale, `index_codebase` (or `/index`) before any search. Never run `index_codebase` without an immediate search to use it.
+2. `codebase_context` — preferred first repository tool for conceptual discovery, symbol definitions, and dependency paths.
+3. `codebase_peek` — metadata-only lookup (symbols, references, file discovery) when you need location, not source.
+4. `codebase_search` — behavior and implementation chunks. Mandated for "what does this code do" questions when the index is built; never `bash grep`/`rg`/line-by-line `read` to answer one.
+5. `implementation_lookup` — jump to a known symbol's definition.
+6. `find_similar` / `call_graph` / `call_graph_path` — duplicates, callers, callees, dependency flow.
+7. `libref query <lib> <topic>` — before `web_search` / `fetch_url` for library or API docs. For an unknown lib: `libref list` → `query` → `libref add <github_repo>` (registers the source) → `query` again. Fall through to `web_search` / `fetch_url` only when libref lacks the package.
+8. `read` (targeted lines only) — AFTER the index tools narrowed the location. Never as a first move for exploration.
+9. `grep` / `glob` — last-mile regex, dotfiles, gitignored paths. Use only when the index can't answer (no symbol match, file outside the index, or path is already known).
+
+# Rules
+
+- `codebase_*` / `index_*` are native package tools, not MCP tools. Call them directly by the names shown in the active tool list.
+- The index exists to serve search. `index_status` and `index_codebase` are prerequisites to using `codebase_context` / `codebase_peek` / `codebase_search` / `implementation_lookup` / `call_graph`; never standalone diligence.
+- `read` is not an exploration tool — find candidates with the index first, then read targeted ranges.
+- Never shell-search (`bash grep`, `rg`, `find`, `cat`) for code exploration when the index is built.
+- `call_graph` answers import and call-flow questions — do not trace manually.
+- `codebase_search` is the default for "what does this code do" questions — do not fall back to `bash grep` / `rg` for semantic lookup when the index is built.
+- `libref add <github_repo>` is how to register a library source. Do not skip registration before querying an unknown lib.
+
+Mnemonic: need search → `index_status` → `codebase_context` → `codebase_peek` / `codebase_search` → `implementation_lookup` / `call_graph` → targeted `read`. Don't need search → skip the gate.
+</exploration_gate>
+
+<coding_discipline>
+- State assumptions and tradeoffs before coding; ask when ambiguous.
+- Write the minimum code that solves the problem — no speculative abstractions. If 200 lines can be 50, rewrite.
+- Touch only what the request requires; match the existing style. Remove only orphans you created.
+- Comments are deliberate, not freely strewn through the code. Code must comment itself — prefer clear names and structure over prose. Add a comment only for the *why* that is not self-evident from the code; never restate what the code does. Every comment costs tokens and maintenance: if it does not explain intent or save a reader real time, omit it.
+- Define verifiable success criteria; prefer failing-test-first for behavior changes.
+- Write only tests that are useful — ones that catch real regressions or verify the solution works. Delete tests written for the sake of having tests; if a test will not help future-you catch a real bug, it does not belong.
+- Verify before done — run the smallest sufficient set of tests / lint / type-check / build that the repo defines.
+
+<communication>
+Use ASD-STE100 Simplified Technical English for handovers, documentation, and any text another agent will read.
+- Write short sentences — 20 words or fewer, one idea per sentence.
+- Use the active voice (“apply the patch”, not “the patch is applied”).
+- Use only one approved meaning per word; do not use a word as a verb and also as a noun (“make an exit” vs “exit the program”).
+- Use the approved vocabulary of STE where it exists; define any unavoidable term on first use and then keep it consistent.
+- Keep the meaning explicit — a reader/next agent should never have to infer intent or outcome.
+- Be specific: name files, commands, and symbols instead of relying on “the file” or “it”.
+- For handovers: list what was done, what is pending, and what the next agent must verify or decide.
+- Keep the timeline explicit in handovers — state when something changed and any deadlines.
+- For documents: lead with the conclusion, then the supporting detail.
+- Cut filler (“in order to” → “to”, “at this point in time” → “now”); avoid hedging words (“perhaps”, “probably”) unless a decision is genuinely uncertain.
+</communication>
+
+<security>
+- Never expose secrets in code, commits, logs, screenshots, Docker layers, package metadata, or generated files.
+- Never commit or modify `.env` files; use `.env.example` or documented placeholders.
+- Never introduce real secret values into source code; use configuration indirection.
+- Never run destructive commands (`rm -rf`, `git push --force`, irreversible migrations) without explicit human confirmation.
+- Never use `--no-verify` with `git commit` or `git push` unless explicitly approved.
+- Never add AI co-authorship or attribution to commits.
+- Never modify lockfiles (`package-lock.json`, `pnpm-lock.yaml`, `poetry.lock`, `Cargo.lock`, …) unless explicitly instructed.
+- Never skip required verification steps the repository defines.
+</security>
+
+<skill_dir_resolution>
+Resolve `<SKILL_DIR>` to `~/.claude/skills/<skill-name>/`
+</skill_dir_resolution>

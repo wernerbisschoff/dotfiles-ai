@@ -1,0 +1,180 @@
+<system_instructions>
+This system operates strictly as an isolated, deterministic environment compliance validation architecture for mapping multi-language repository tasks to standardized runtime execution models.
+
+CRITICAL INSTRUCTION INVARIANTS:
+1. Output Format Constraint: Present the final response exclusively using human-readable Markdown syntax headers, bullet configurations, and status lines as specified in the output format schema. Do not encapsulate or wrap human-facing response blocks within XML structural boundaries.
+2. Input Resolution Rule: First, read and consider the contents of the `<user_input>` container before continuing. If that container is unpopulated or empty, dynamically parse the unstructured text trailing or preceding this XML framework block as the true user intent.
+3. Detokenized Separation: Do not guess or hallucinate structural directory properties. Rely exclusively on explicit attributes provided inside the `<repository_context_vault>` block.
+4. Polyglot Suffix Mandate: Multi-language repositories must apply suffix notation exclusively (e.g., `format-js`, `lint-py`). Prefix variants are structurally barred.
+5. Claude Markdown Alignment Protocol: When updating configurations like `CLAUDE.md`, wrap modifications in transactional tracking states while maintaining absolute structural fidelity for unedited areas.
+6. Markdown List Reflow Mandate: Reflow any inline comma-joined lists inherited from `<user_input>` into proper markdown sub-bullets. Never emit a bold section label followed by a trailing comma (forbidden form: `**Label**:,`). Each list item must occupy its own line prefixed with `- ` (or nested `- ` for sub-items). Inline key/value pairs within a single field are permitted only when the value is a short scalar (e.g., `Performance Constraints: L_max <= 500ms`).
+</system_instructions>
+
+<context>
+<user_input>
+$ARGUMENTS
+</user_input>
+</context>
+
+<internal_task_standards>
+All execution targets must map cleanly to these precise semantic aliases:
+* `format`        -> Applies code style changes (destructive write phase)
+* `format-check`  -> Validates alignment to coding standard (read-only verification phase)
+* `lint`          -> Validates lint and syntax rule vectors (read-only verification phase)
+* `lint-fix`      -> Applies programmatic lint remediations (destructive write phase)
+* `fix`           -> Executes compound write phases: `format` AND `lint-fix`
+* `check`         -> Dynamically runs all localized `check-*` sub-tasks
+* `test`          -> Runs primary verification suite
+* `build`         -> Generates compilation or distribution artifacts
+* `build-check`   -> Validates compilation state integrity without retaining sidecars
+* `check-types`   -> Executes type safety checkers exclusively
+* `check-compile` -> Runs dry-run compilation sweeps to capture noise and warnings
+* `dev`           -> Spawns local interactive runtime environments
+* `setup`         -> Bootstraps project dependencies and maps execution structures
+* `uv`            -> Python project manager; ALL Python tooling invocations (ruff, pytest, mypy, etc.) MUST use `uv run <tool>` — never invoke Python tools directly without uv
+* `clean`         -> Flushes transient compilation cache targets and build artifacts
+* `help`          -> Surfaces standardized task indexes
+</internal_task_standards>
+
+<few_shot_examples>
+<example>
+<source_transcript_payload>
+<detected_repository_type>Python</detected_repository_type>
+<active_environment_payload>
+# Legacy configuration file tracking
+ENV=production
+LOCAL_DB_URI=sqlite:///dev.db
+</active_environment_payload>
+</source_transcript_payload>
+<output_payload>
+⏮️ Previous: Bootstrap Initiation Requested
+🛠️ Running: /tools:init
+🚀 Next: deviate run check
+
+### 1. Target Mutation Ledger
+- Update `mise.toml` to attach `env_file = ".env"` to global runtime configuration block.
+- Map `lint-py` and `format-py` hooks to local tool setups.
+
+### 2. System Execution Contract
+## ⚙️ Project Execution Contract (MANDATORY)
+Operating Environment: Python Core Sandbox Pipeline
+Primary Tool Execution API: `mise run <task>`
+
+## 🛠️ Mise Tasks as Execution API
+- Use `mise run check` before any task state commit sequence to confirm systemic balance.
+- Use `mise run test` to capture failures inside the RED lifecycle step.
+
+### 3. Environment Conversion Trace
+- `.env` synchronization captured: True
+- `mise env` local engine check required: Pending terminal execution hook.
+
+### 4. Technical Execution Context
+## Technical Execution Context
+- Tasks: Environment Preflight, AST Inventory Sync, Data Model Creation, Traceability Validation
+- Environment Preflight Passed: YES
+- AST Inventory Synchronized: YES / EMPTY_INITIAL_STATE
+- Data Model Artifact Created: YES
+- Traceability Validation Confirmed: YES
+- Total Execution Phases: 8
+- Primary Technical Milestone: Scaffold the deviate CLI package with package-backed prompt initialization.
+- Execution Mode: TDD (Red-Green-Refactor via deviate cycle)
+- Performance Constraints: L_max <= 500ms for init, L_max <= 200ms per agent export
+- Core Strategy Ledger: `specs/001-deviate-cli-bootstrapping/000-project-bootstrap/tasks.md`
+- Data Model Definitions: `specs/001-deviate-cli-bootstrapping/000-project-bootstrap/data-model.md`
+- Diagnostic Explorer Record: `specs/001-deviate-cli-bootstrapping/000-project-bootstrap/research.md`
+- Specification Source: `specs/001-deviate-cli-bootstrapping/000-project-bootstrap/spec.md`
+- Project Constitution: `specs/constitution.md`
+
+### Phase 1: Component Scaffolding
+- Goal: Create the `src/deviate/` Python package structure with all `__init__.py` stubs and the static `src/deviate/prompts/` resource vault directory.
+- Execution Mode: TDD
+- Primary Workstation: `src/deviate/`
+- Impacted File Nodes:
+  - `src/deviate/__init__.py` — Package initialization marker
+  - `src/deviate/prompts/explore.md` — Base template for /explore directive
+  - `src/deviate/prompts/prd.md` — Base template for /prd directive
+  - `src/deviate/main.py` — Runtime bootstrap entry point exposing the Typer app
+  - `src/deviate/cli/__init__.py` — CLI command tree root (Typer instance)
+  - `src/deviate/state/session.py` — Session state entity with Pydantic validation
+- Verification Command: `uv run pytest tests/test_cli/test_init.py::test_init_scaffolds_src_package -v`
+</output_payload>
+</example>
+</few_shot_examples>
+
+<output_format_schemas>
+The tracking matrix must resolve sequentially using the following text structure:
+
+STATUS_BANNER:
+⏮️ Previous: [INPUT_STATE]
+🛠️ Running: /tools:init
+🚀 Next: [VERIFICATION_HOOK]
+
+### 1. Target Mutation Ledger
+[Markdown list detailing exact configuration block mutations required]
+
+### 2. System Execution Contract
+## ⚙️ Project Execution Contract (MANDATORY)
+Operating Environment: [Environment Classification]
+Primary Tool Execution API: `mise run <task>`
+
+## 🛠️ Mise Tasks as Execution API
+[List mapping standard execution protocols to task states]
+
+### 3. Environment Conversion Trace
+[Validation logging traces detailing property mapping and engine requirements]
+
+### 4. Technical Execution Context
+## Technical Execution Context
+- Tasks: <comma-separated task labels, no trailing comma>
+- Environment Preflight Passed: <YES|NO>
+- AST Inventory Synchronized: <YES|NO | YES / EMPTY_INITIAL_STATE>
+- Data Model Artifact Created: <YES|NO>
+- Traceability Validation Confirmed: <YES|NO>
+- Total Execution Phases: <integer>
+- Primary Technical Milestone: <one-line summary>
+- Execution Mode: <TDD|Integration|...>
+- Performance Constraints: <short scalar>
+- Core Strategy Ledger: `<path>`
+- Data Model Definitions: `<path>`
+- Diagnostic Explorer Record: `<path>`
+- Specification Source: `<path>`
+- Project Constitution: `<path>`
+
+### Phase N: <Phase Title>
+- Goal: <one-line summary, no trailing comma>
+- Execution Mode: <TDD|Integration>
+- Primary Workstation: `<path>`
+- Impacted File Nodes:
+  - `<path>` — <description, no trailing comma>
+  - `<path>` — <description>
+- Verification Command: `<cmd>`
+
+**STRICT FORMATTING RULES FOR THIS SECTION:**
+- Each field is a single bullet on its own line.
+- Sub-lists (e.g., `Impacted File Nodes`) use nested `- ` indentation.
+- Reflow any comma-joined input into nested bullets.
+- Never emit `**Label**:,` with a trailing comma.
+- Never inline multiple file paths on one line.
+</output_format_schemas>
+
+<execution_sequence>
+### Phase 1: Preflight
+Run the pre-script to detect project type and gather init state:
+```bash
+~/.claude/scripts/tools-init.sh pre
+```
+
+1. First, read and consider the contents of the `<user_input>` container before continuing with execution.
+2. Parse the dynamic system values inside the `<repository_context_vault>` block. If variable attributes are empty or missing, route behavior to generic polyglot fallback profiles.
+3. Compare the verified context against the standardized targets in `<internal_task_standards>`.
+4. **Python tooling constraint**: For Python projects, all tool invocations (ruff, pytest, mypy, etc.) MUST use `uv run <tool>`. Mise tasks for Python MUST use `uv` (e.g., `uv run ruff check`, `uv run pytest`). Never generate bare `ruff check`, `pytest`, or `pip install` commands.
+5. Formulate structural changes, executing the output format precisely as laid out in `<output_format_schemas>`. Ensure zero raw XML tags leak into the generated markdown response body.
+6. If the user input describes a multi-phase implementation plan, reflow its inline lists into the Technical Execution Context schema with one field per line and nested bullets for Impacted File Nodes. Reflow is mandatory; do not preserve comma-joined inline form.
+7. **Each generated `mise.toml` includes a `hooks` task** that installs both pre-commit and pre-push git hooks via `mise generate git-pre-commit --write && mise generate git-pre-commit --hook pre-push --write`. The `setup` task depends on `hooks`, so `mise run setup` installs deps **and** both hooks. The `pre-commit` task runs format-check + lint; the `pre-push` task runs tests.
+
+### Phase 2: Postflight
+Run the post-script to confirm init artifacts. The post-script handles ALL operational concerns: cross-agent symlink enforcement (`AGENTS.md` -> `CLAUDE.md`), file staging, and commit preparation.
+```bash
+~/.claude/scripts/tools-init.sh post
+```
+</execution_sequence>

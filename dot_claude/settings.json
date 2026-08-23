@@ -1,0 +1,309 @@
+{
+  "cleanupPeriodDays": 30,
+
+  "attribution": {
+    "commit": "",
+    "pr": ""
+  },
+  "permissions": {
+    "allow": [
+      "WebSearch",
+
+      "Bash(git status*)",
+      "Bash(git --no-pager status*)",
+      "Bash(git diff*)",
+      "Bash(git --no-pager diff*)",
+      "Bash(git diff --cached*)",
+      "Bash(git log*)",
+      "Bash(git --no-pager log*)",
+      "Bash(git show*)",
+      "Bash(git --no-pager show*)",
+      "Bash(git branch --show-current)",
+      "Bash(git --no-pager branch --show-current)",
+      "Bash(git branch*)",
+      "Bash(git --no-pager branch*)",
+      "Bash(git remote get-url*)",
+      "Bash(git rev-parse*)",
+      "Bash(git merge-base*)",
+      "Bash(git worktree list*)",
+      "Bash(git --nopager submodule status *)",
+      "Bash(git ls-files*)",
+      "Bash(git describe*)",
+
+      "Bash(git add -A)",
+      "Bash(git add -u)",
+      "Bash(git add *)",
+      "Bash(git commit -m *)",
+      "Bash(git checkout -b task/*)",
+      "Bash(git checkout -b *)",
+
+      "Bash(gh auth status*)",
+      "Bash(gh auth token*)",
+      "Bash(gh api graphql -f query='{*')",
+      "Bash(gh api graphql -f query=\"{*\")",
+      "Bash(gh api -X GET *)",
+      "Bash(gh pr list *)",
+      "Bash(gh pr view *)",
+      "Bash(gh pr status *)",
+      "Bash(gh pr create *)",
+      "Bash(gh pr merge *)",
+      "Bash(gh pr edit *)",
+      "Bash(gh pr close *)",
+      "Bash(gh issue list *)",
+      "Bash(gh issue view *)",
+      "Bash(gh issue create *)",
+      "Bash(gh issue edit *)",
+      "Bash(gh issue close *)",
+      "Bash(gh repo view *)",
+      "Bash(gh run list *)",
+      "Bash(gh run view *)",
+      "Bash(gh run watch *)",
+
+      "Bash(mise run check*)",
+      "Bash(mise run test*)",
+      "Bash(mise run build-check*)",
+      "Bash(mise run hooks*)",
+      "Bash(mise run setup*)",
+      "Bash(mise run format*)",
+      "Bash(mise run format-check*)",
+      "Bash(mise run lint*)",
+      "Bash(mise run lint-fix*)",
+      "Bash(mise run fix*)",
+      "Bash(mise run dev*)",
+      "Bash(mise run help*)",
+      "Bash(mise run clean*)",
+      "Bash(mise env*)",
+      "Bash(mise run *)",
+
+      "Bash(npm run *)",
+      "Bash(npm test *)",
+      "Bash(npm install *)",
+      "Bash(pnpm *)",
+      "Bash(mix *)",
+      "Bash(mix format *)",
+      "Bash(mix test *)",
+      "Bash(mix deps.get *)",
+      "Bash(mix hex *)",
+      "Bash(pip *)",
+      "Bash(pip3 *)",
+      "Bash(poetry *)",
+      "Bash(yarn *)",
+      "Bash(bundler *)",
+      "Bash(bundle exec *)",
+      "Bash(cargo *)",
+      "Bash(cargo build *)",
+      "Bash(cargo test *)",
+      "Bash(cargo check *)",
+
+      "Bash(rubocop *)",
+      "Bash(ruff *)",
+      "Bash(ruff check *)",
+      "Bash(ruff format *)",
+      "Bash(eslint *)",
+      "Bash(prettier *)",
+      "Bash(biome *)",
+      "Bash(fmt *)",
+      "Bash(clippy *)",
+      "Bash(typos *)",
+
+      "Bash(bats *)",
+      "Bash(pytest *)",
+      "Bash(playwright *)",
+      "Bash(cypress *)",
+      "Bash(newman *)",
+      "Bash(go test *)",
+      "Bash(go vet *)",
+
+      "Read(~/.config/ai/*)",
+      "Read(~/.local/state/agent-artifacts/**)",
+      "Bash(~/.config/ai/*)",
+
+      "Bash(~/.claude/scripts/*)",
+      "Bash(eval \"$(~/.claude/scripts/gh-repo-info.sh)\")",
+
+      "Bash(mkdir -p *)",
+      "Bash(ln -sf *)",
+      "Bash(cp -r *)",
+      "Bash(cp *)",
+      "Bash(ls -la *)",
+      "Bash(ls *)",
+      "Bash(cat *)",
+      "Bash(mktemp *)",
+      "Bash(curl -L *)",
+      "Bash(wget *)",
+      "Bash(chmod +x *)",
+      "Bash(chmod *)",
+      "Bash(stat *)",
+      "Bash(readlink *)",
+      "Bash(find *)",
+      "Bash(fd *)",
+      "Bash(rg *)",
+      "Bash(xz *)",
+      "Bash(tar *)",
+
+      "Bash(git worktree add *)",
+      "Bash(git worktree create *)",
+
+      "Bash(git push -u origin *)",
+      "Bash(git push -u *)",
+      "Bash(git push *)",
+
+      "Bash(gemini *)",
+      "Bash(task-master *)"
+    ],
+    "deny": [
+      "Bash(*gh api graphql*mutation*)",
+
+      "Bash(git push --force-with-lease *)",
+      "Bash(git push --force *)",
+      "Bash(git push -f *)",
+      "Bash(git rebase *)",
+      "Bash(git reset --hard *)",
+      "Bash(git reset --mixed *)",
+      "Bash(git checkout .)",
+      "Bash(git restore .)",
+      "Bash(git worktree remove *)",
+      "Bash(git worktree prune *)",
+      "Bash(git branch -D *)",
+      "Bash(git branch -d *)",
+      "Bash(git commit --amend --no-edit *)",
+      "Bash(git commit --amend *)",
+      "Bash(git merge --abort *)",
+      "Bash(git rebase --abort *)",
+
+      "Bash(rm -rf *)",
+      "Bash(rm -r *)",
+      "Bash(rm *)",
+      "Bash(shred *)",
+      "Bash(dd *)",
+
+      "Read(*.key)",
+      "Read(*.pem)",
+      "Read(*.p12)",
+      "Read(*.pfx)",
+      "Read(*.ovpn)",
+      "Write(*.key)",
+      "Write(*.pem)",
+      "Write(*.p12)",
+      "Write(*.pfx)",
+      "Write(*.ovpn)",
+
+      "Read(.env*)",
+      "Write(.env*)",
+
+      "Read(*/.ssh/config)",
+      "Write(*/.ssh/config)",
+
+      "Bash(gh auth login *)",
+      "Bash(gh auth refresh *)",
+      "Bash(gh auth logout *)",
+      "Bash(gh pr close --delete-branch *)",
+
+      "Bash(npm publish *)",
+      "Bash(npm deprecate *)",
+      "Bash(mix release *)",
+      "Bash(mix hex.publish *)",
+      "Bash(cargo publish *)",
+      "Bash(cargo yank *)",
+
+      "Bash(docker system prune *)",
+      "Bash(docker volume prune *)",
+      "Bash(docker kill *)",
+      "Bash(docker rm -f *)",
+      "Bash(systemctl *)",
+      "Bash(service *)"
+    ],
+    "ask": [
+      "Bash(git stash)",
+      "Bash(git stash pop)",
+      "Bash(git stash drop)",
+      "Bash(git stash clear)",
+      "Bash(git clean -fd)",
+      "Bash(git clean -f)",
+      "Bash(git reflog *)",
+
+      "Bash(mv *)",
+      "Bash(rmdir *)",
+      "Bash(rm -d *)",
+
+      "Bash(git checkout main)",
+      "Bash(git checkout master)",
+      "Bash(git switch main)",
+      "Bash(git switch master)",
+      "Bash(git merge *)",
+
+      "Bash(mise tasks *)",
+      "Bash(mise edit *)",
+      "Bash(npm pkg *)",
+      "Bash(npm config *)",
+
+      "Bash(pnpm add *)",
+      "Bash(npm install --save-dev *)",
+      "Bash(mix deps.get *)",
+      "Bash(mix deps.update *)",
+      "Bash(poetry add *)",
+      "Bash(cargo add *)",
+
+      "Bash(gh run watch *)",
+      "Bash(gh run trigger *)",
+      "Bash(gh api *)",
+
+      "Read(.env*.example*)",
+      "Read(.envrc*)",
+
+      "Write(~/.claude/settings.json)",
+      "Write(~/.claude/hooks/*)",
+      "Write(~/.local/state/agent-artifacts/**)"
+    ]
+  },
+  "model": "sonnet",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/validate-file-exists.sh",
+            "timeout": 500
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/validate-path.sh",
+            "timeout": 500
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/validate-git-state.sh",
+            "timeout": 1000
+          }
+        ]
+      }
+    ]
+  },
+  "extraKnownMarketplaces": {
+    "claude-code-warp": {
+      "source": {
+        "source": "github",
+        "repo": "warpdotdev/claude-code-warp"
+      }
+    }
+  },
+  "theme": "dark",
+  "autoUpdates": true,
+  "autoConnectIde": true,
+  "fallbackAvailableWarningThreshold": 0.5,
+  "enabledPlugins": {
+    "warp@claude-code-warp": true
+  }
+}

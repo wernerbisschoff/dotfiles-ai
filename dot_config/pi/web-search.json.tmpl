@@ -1,0 +1,8 @@
+{
+  "provider": "brave",
+  "workflow": "auto-summary"{{ if env "FIRECRAWL_API_KEY" }},
+  "firecrawlBaseUrl": "https://api.firecrawl.dev",
+  "firecrawlApiVersion": "v2",
+  "firecrawlApiKey": "{{ env "FIRECRAWL_API_KEY" }}",
+  "firecrawlFreshScrape": true{{ end }}
+}

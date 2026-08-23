@@ -1,0 +1,32 @@
+# Logs
+*.log
+
+# Dependencies
+node_modules/
+
+# Secrets
+.env
+
+# Editors
+.idea
+.vscode
+*.sw?
+
+# OS
+.DS_Store
+
+# Chezmoi worktrees
+.worktrees/
+
+# Pi message-history extension runtime state (per-cwd history files)
+/.pi/message-history.json
+
+# Generated commands/prompts (from symlinked templates)
+*/commands/deviate-*.md
+*/prompts/deviate-*.md
+*/commands/tome-*.md
+*/prompts/tome-*.md
+
+# Local runtime state
+*.bak
+.codebase-index/

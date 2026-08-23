@@ -1,0 +1,281 @@
+{
+  "customModels": [
+    {
+      "model": "minimax-m3",
+      "id": "custom:mm",
+      "index": 3,
+      "baseUrl": "https://api.minimax.io/anthropic",
+      "apiKey": "${MINIMAX_API_KEY}",
+      "displayName": "MiniMax-M3",
+      "maxOutputTokens": 16384,
+      "extraArgs": {
+        "temperature": 0.7
+      },
+      "noImageSupport": false,
+      "provider": "anthropic"
+    },
+    {
+      "model": "glm-4.7",
+      "id": "custom:GLM-4.7-[Z.AI-Coding-Plan]-1",
+      "index": 1,
+      "baseUrl": "https://api.z.ai/api/coding/paas/v4",
+      "apiKey": "${ZAI_API_KEY}",
+      "displayName": "GLM-4.7 [Z.AI Coding Plan OpenAI]",
+      "maxOutputTokens": 131072,
+      "noImageSupport": false,
+      "provider": "generic-chat-completion-api"
+    },
+    {
+      "model": "glm-5.1",
+      "id": "custom:GLM-5.1-[Z.AI-Coding-Plan]-2",
+      "index": 2,
+      "baseUrl": "https://api.z.ai/api/coding/paas/v4",
+      "apiKey": "${ZAI_API_KEY}",
+      "displayName": "GLM-5.1 [Z.AI Coding Plan]",
+      "maxOutputTokens": 131072,
+      "noImageSupport": false,
+      "provider": "generic-chat-completion-api"
+    },
+    {
+      "model": "glm-5.1",
+      "id": "custom:GLM-5.1-[Z.AI-PAAS]-1",
+      "index": 2,
+      "baseUrl": "https://api.z.ai/api/paas/v4",
+      "apiKey": "${ZAI_API_KEY}",
+      "displayName": "GLM-5.1 [Z.AI PAAS]",
+      "maxOutputTokens": 131072,
+      "noImageSupport": false,
+      "provider": "generic-chat-completion-api"
+    },
+    {
+      "model": "glm-4.5-air",
+      "id": "custom:GLM-4.5-Air-[Z.AI-Coding-Plan]-3",
+      "index": 3,
+      "baseUrl": "https://api.z.ai/api/coding/paas/v4",
+      "apiKey": "${ZAI_API_KEY}",
+      "displayName": "GLM-4.5-Air [Z.AI Coding Plan]",
+      "maxOutputTokens": 131072,
+      "noImageSupport": false,
+      "provider": "generic-chat-completion-api"
+    },
+    {
+      "model": "deepseek/deepseek-v4-pro",
+      "id": "custom:ds",
+      "index": 4,
+      "baseUrl": "https://openrouter.ai/api",
+      "apiKey": "${OPENROUTER_API_KEY}",
+      "displayName": "DeepSeek V4 Pro [OpenRouter]",
+      "maxOutputTokens": 16384,
+      "noImageSupport": false,
+      "provider": "anthropic"
+    },
+    {
+      "model": "deepseek/deepseek-v4-flash",
+      "id": "custom:dsf",
+      "index": 5,
+      "baseUrl": "https://openrouter.ai/api",
+      "apiKey": "${OPENROUTER_API_KEY}",
+      "displayName": "DeepSeek V4 Flash [OpenRouter]",
+      "maxOutputTokens": 16384,
+      "noImageSupport": false,
+      "provider": "anthropic"
+    },
+    {
+      "model": "qwen/qwen3.7-plus",
+      "id": "custom:qwen37",
+      "index": 6,
+      "baseUrl": "https://openrouter.ai/api",
+      "apiKey": "${OPENROUTER_API_KEY}",
+      "displayName": "Qwen3.7-Plus [OpenRouter]",
+      "maxOutputTokens": 65536,
+      "noImageSupport": false,
+      "provider": "anthropic"
+    },
+    {
+      "model": "deepseek-v4-flash",
+      "id": "custom:ds-flash",
+      "index": 7,
+      "baseUrl": "https://api.deepseek.com/anthropic",
+      "apiKey": "${DEEPSEEK_API_KEY}",
+      "displayName": "DeepSeek V4 Flash [Direct]",
+      "maxOutputTokens": 16384,
+      "noImageSupport": false,
+      "provider": "anthropic"
+    },
+    {
+      "model": "deepseek-v4-pro",
+      "id": "custom:ds-pro",
+      "index": 8,
+      "baseUrl": "https://api.deepseek.com/anthropic",
+      "apiKey": "${DEEPSEEK_API_KEY}",
+      "displayName": "DeepSeek V4 Pro [Direct]",
+      "maxOutputTokens": 16384,
+      "noImageSupport": false,
+      "provider": "anthropic"
+    },
+    {
+      "model": "mimo-v2.5",
+      "id": "custom:mimo-v2.5",
+      "index": 9,
+      "baseUrl": "https://token-plan-sgp.xiaomimimo.com/anthropic",
+      "apiKey": "${MIMO_API_KEY}",
+      "displayName": "Xiaomi MiMo V2.5 [Direct]",
+      "provider": "anthropic"
+    },
+    {
+          "model": "mimo-v2.5-pro",
+          "id": "custom:mimo-v2.5-pro",
+          "index": 9,
+          "baseUrl": "https://token-plan-sgp.xiaomimimo.com/anthropic",
+          "apiKey": "${MIMO_API_KEY}",
+          "displayName": "Xiaomi MiMo V2.5 Pro [Direct]",
+          "provider": "anthropic"
+        },
+    {
+      "model": "google/gemma-4-e4b",
+      "id": "custom:lm-gemma-4-e4b",
+      "index": 10,
+      "baseUrl": "http://localhost:1234/v1",
+      "apiKey": "not-needed",
+      "displayName": "Gemma 4 E4B [LM Studio]",
+      "maxOutputTokens": 16000,
+      "noImageSupport": true,
+      "provider": "openai"
+    },
+    {
+      "model": "gemma-4-12b-coder-fable5-composer2.5-v1",
+      "id": "custom:lm-gemma-4-12b-coder",
+      "index": 11,
+      "baseUrl": "http://localhost:1234/v1",
+      "apiKey": "not-needed",
+      "displayName": "Gemma 4 12B Coder [LM Studio]",
+      "maxOutputTokens": 16000,
+      "noImageSupport": true,
+      "provider": "openai"
+    },
+    {
+      "model": "qwen3.6-35b-a3b",
+      "id": "custom:lm-qwen3.6-35b-a3b",
+      "index": 12,
+      "baseUrl": "http://localhost:1234/v1",
+      "apiKey": "not-needed",
+      "displayName": "Qwen3.6 35B A3B [LM Studio]",
+      "maxOutputTokens": 16000,
+      "noImageSupport": true,
+      "provider": "openai"
+    }
+  ],
+  "cloudSessionSync": false,
+  "diffMode": "github",
+  "ideExtensionPromptedAt": {},
+  "ideActivationNudgedForVersion": {},
+  "enableCompletionBell": false,
+  "completionSound": "fx-ok01",
+  "awaitingInputSound": "fx-ack01",
+  "soundFocusMode": "always",
+  "commandAllowlist": [
+    "ls",
+    "pwd",
+    "dir",
+    "git status",
+    "git log",
+    "git diff",
+    "git show",
+    "git branch",
+    "git remote get-url",
+    "git commit",
+    "make",
+    "mkdir"
+  ],
+  "commandDenylist": [
+    "gh pr close --delete-branch",
+    "rm -rf /",
+    "rm -rf /*",
+    "rm -rf .",
+    "rm -rf ~",
+    "rm -rf ~/*",
+    "rm -rf $HOME",
+    "rm -r /",
+    "rm -r /*",
+    "rm -r ~",
+    "rm -r ~/*",
+    "mkfs",
+    "mkfs.ext4",
+    "mkfs.ext3",
+    "mkfs.vfat",
+    "mkfs.ntfs",
+    "dd if=/dev/zero of=/dev",
+    "dd of=/dev",
+    "shutdown",
+    "reboot",
+    "halt",
+    "poweroff",
+    "init 0",
+    "init 6",
+    ":(){ :|: & };:",
+    ":() { :|:& };:",
+    "chmod -R 777 /",
+    "chmod -R 000 /",
+    "chown -R",
+    "powershell Remove-Item -Recurse -Force",
+    "Format-Volume",
+    "format.com"
+  ],
+  "enableCustomDroids": false,
+  "includeCoAuthoredByDroid": false,
+  "enableDroidShield": true,
+  "enableReadinessReport": true,
+  "todoDisplayMode": "pinned",
+  "allowBackgroundProcesses": false,
+  "showThinkingInMainView": false,
+  "ideAutoConnect": false,
+  "autonomyLevel": "auto-medium",
+  "opus45PriceChangeDismissed": true,
+  "sessionDefaultSettings": {
+    "model": "custom:mm",
+    "reasoningEffort": "none",
+    "specModeModel": "custom:mm",
+    "specModeReasoningEffort": "none",
+    "autonomyMode": "auto-medium",
+    "interactionMode": "auto",
+    "autonomyLevel": "medium"
+  },
+  "logoAnimation": "off",
+  "hasSeenMissionOnboarding": true,
+  "missionModelSettings": {
+    "workerModel": "custom:mm",
+    "workerReasoningEffort": "none",
+    "validationWorkerModel": "custom:mm",
+    "validationWorkerReasoningEffort": "none"
+  },
+  "permissions": {
+    "allow": [
+      "Read(~/.local/state/agent-artifacts/**)",
+      "Write(~/.local/state/agent-artifacts/**)"
+    ],
+    "deny": [],
+    "ask": []
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -c \"import json, sys; data=json.load(sys.stdin); path=data.get('tool_input',{}).get('file_path',''); sys.exit(2 if '.env' in path else 0)\""
+          }
+        ]
+      },
+      {
+        "matcher": "Create|Edit|ApplyPatch",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -c \"import json, sys; data=json.load(sys.stdin); path=data.get('tool_input',{}).get('file_path',''); sys.exit(2 if '.env' in path else 0)\""
+          }
+        ]
+      }
+    ]
+  }
+}

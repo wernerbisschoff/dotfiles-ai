@@ -1,0 +1,501 @@
+#!/usr/bin/env bash
+#
+# executable_tools-pr-review.sh - Orchestrator for the /tools-pr-review workflow
+#
+# This script wraps operational concerns of the PR review feedback application
+# workflow:
+#   - Repository validation
+#   - PR detection and context gathering
+#   - Unresolved review thread retrieval via gh CLI
+#   - Change validation and committing
+#
+# Usage:
+#   executable_tools-pr-review.sh pre
+#   executable_tools-pr-review.sh post
+#
+# The 'pre' subcommand emits a JSON contract to stdout with PR diff,
+# commit history, unresolved review threads, and a plan_target path.
+# The 'post' subcommand reads the AI-written plan JSON from plan_target,
+# stages only the specified files, runs lint + tests (blocking —
+# unstages and aborts if either fails), and commits.
+#
+# Exit codes:
+#   0   Success
+#   1   Invalid arguments
+#   2   Pre-flight check failed (not a repo, detached HEAD)
+#
+set -euo pipefail
+
+SCRIPT_NAME="$(basename "$0")"
+
+# Shared library: colors, logging, find_repo_root, create_temp_dir,
+# gather_git_state, etc.
+# shellcheck disable=SC1054,SC1009,SC1083,SC1073,SC1056,SC1072  # chezmoi template directive, not real bash
+{{ template "scripts/lib/common.sh.tmpl" . }}
+
+#------------------------------------------------------------------------------
+# Pre: Gather PR context — diff, commits, review threads, git state
+#------------------------------------------------------------------------------
+cmd_pre() {
+	# Validate repo
+	local repo_root
+	repo_root=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+	if [[ -z "$repo_root" ]]; then
+		echo '{"status":"FAILURE","reason":"Not a git repository"}'
+		exit 2
+	fi
+
+	local branch
+	branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+
+	# Check for gh CLI
+	local gh_available=false
+	if command -v gh &>/dev/null; then
+		gh_available=true
+	else
+		log_warn "gh CLI not found — operating in degraded mode (no PR thread retrieval)"
+	fi
+
+	# Detect base branch
+	local base_branch="main"
+	for candidate in main master develop; do
+		if git show-ref --verify "refs/heads/$candidate" &>/dev/null; then
+			base_branch="$candidate"
+			break
+		fi
+	done
+
+	# Detect PR number for current branch
+	local pr_number=""
+	if [[ "$gh_available" == "true" ]]; then
+		pr_number=$(gh pr list --head "$branch" --json number --jq '.[0].number // ""' 2>/dev/null || echo "")
+		if [[ -n "$pr_number" ]]; then
+			log_info "Detected PR #$pr_number for branch $branch"
+		else
+			log_info "No PR found for branch $branch — operating with git diff only"
+		fi
+	fi
+
+	# Gather working-tree state via shared helper
+	local git_state
+	git_state=$(gather_git_state) || exit 2
+	local staged_json unstaged_json untracked_json
+	local staged_count unstaged_count untracked_count
+	staged_json=$(printf '%s' "$git_state" | jq -c '.staged_json // []')
+	unstaged_json=$(printf '%s' "$git_state" | jq -c '.unstaged_json // []')
+	untracked_json=$(printf '%s' "$git_state" | jq -c '.untracked_json // []')
+	staged_count=$(printf '%s' "$git_state" | jq -r '.staged_count // 0')
+	unstaged_count=$(printf '%s' "$git_state" | jq -r '.unstaged_count // 0')
+	untracked_count=$(printf '%s' "$git_state" | jq -r '.untracked_count // 0')
+
+	local is_dirty=false
+	if [[ "$staged_count" -gt 0 ]] || [[ "$unstaged_count" -gt 0 ]] || [[ "$untracked_count" -gt 0 ]]; then
+		is_dirty=true
+	fi
+
+	# Create temp dir for artifacts
+	local temp_dir
+	temp_dir=$(create_temp_dir "pr-review-phase") || exit 2
+	local diff_path="$temp_dir/DIFF"
+	local commit_log_path="$temp_dir/COMMIT_LOG"
+	local review_threads_path="$temp_dir/REVIEW_THREADS"
+	local pr_diff_path="$temp_dir/PR_DIFF"
+	local plan_target="$temp_dir/plan.json"
+
+	# Write diff against base
+	git diff "$base_branch" HEAD -- . >"$diff_path" 2>/dev/null || echo "" >"$diff_path"
+	local diff_size
+	diff_size=$(wc -l <"$diff_path" | tr -d ' ')
+
+	# Write commit log
+	git --no-pager log --oneline --decorate -20 "$base_branch..HEAD" >"$commit_log_path" 2>/dev/null || echo "" >"$commit_log_path"
+	local commit_count=0
+	commit_count=$(git rev-list --count HEAD "^$base_branch" 2>/dev/null || echo 0)
+
+	# No changes guard
+	if [[ "$diff_size" -eq 0 ]] && [[ "$commit_count" -eq 0 ]] && [[ -z "$pr_number" ]]; then
+		echo '{"status":"SUCCESS","has_changes":false,"reason":"No changes to review — branch is up to date with '"$base_branch"'"}'
+		exit 0
+	fi
+
+	# Get PR diff if gh is available and PR exists
+	local pr_diff_size=0
+	if [[ -n "$pr_number" ]] && [[ "$gh_available" == "true" ]]; then
+		gh pr diff "$pr_number" >"$pr_diff_path" 2>/dev/null || echo "" >"$pr_diff_path"
+		pr_diff_size=$(wc -l <"$pr_diff_path" | tr -d ' ')
+	fi
+
+	# Get unresolved review threads if gh is available and PR exists
+	local unresolved_threads="[]"
+	if [[ -n "$pr_number" ]] && [[ "$gh_available" == "true" ]]; then
+		gh api "repos/{owner}/{repo}/pulls/$pr_number/comments" --paginate 2>/dev/null |
+			jq -c '
+				[
+					.[] |
+					select(.pull_request_review_id != null) |
+					{
+						id: .id,
+						path: .path,
+						line: .line,
+						body: .body,
+						author: (.user.login // "unknown"),
+						created_at: .created_at
+					}
+				]
+			' >"$review_threads_path" 2>/dev/null || echo "[]" >"$review_threads_path"
+
+		unresolved_threads=$(cat "$review_threads_path")
+	else
+		echo "[]" >"$review_threads_path"
+	fi
+
+	# Gather changed files from diff
+	local changed_files
+	changed_files=$(git diff --name-only "$base_branch" HEAD 2>/dev/null | tr '\n' ' ' | sed 's/ $//' || echo "")
+	local changed_json="[]"
+	if [[ -n "$changed_files" ]]; then
+		changed_json=$(printf '%s\n' $changed_files | jq -R -s 'split("\n") | map(select(length > 0))')
+	fi
+
+	# Emit contract
+	jq -n \
+		--arg phase "pr-review" \
+		--arg branch "$branch" \
+		--arg base_branch "$base_branch" \
+		--arg repo_root "$repo_root" \
+		--argjson gh_available "$gh_available" \
+		--arg pr_number "${pr_number:-}" \
+		--argjson diff_size "$diff_size" \
+		--argjson commit_count "$commit_count" \
+		--argjson pr_diff_size "$pr_diff_size" \
+		--argjson changed_files "$changed_json" \
+		--argjson is_dirty "$is_dirty" \
+		--argjson unresolved_threads "$unresolved_threads" \
+		--argjson staged_count "$staged_count" \
+		--argjson staged_files "$staged_json" \
+		--argjson unstaged_count "$unstaged_count" \
+		--argjson unstaged_files "$unstaged_json" \
+		--argjson untracked_count "$untracked_count" \
+		--argjson untracked_files "$untracked_json" \
+		--arg diff_path "$diff_path" \
+		--arg commit_log_path "$commit_log_path" \
+		--arg pr_diff_path "$pr_diff_path" \
+		--arg review_threads_path "$review_threads_path" \
+		--arg plan_target "$plan_target" \
+		--arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+		'{
+            phase: $phase,
+            status: "READY",
+            branch: $branch,
+            base_branch: $base_branch,
+            repo_root: $repo_root,
+            gh_available: $gh_available,
+            pr_number: $pr_number,
+            diff_size: $diff_size,
+            commit_count: $commit_count,
+            pr_diff_size: $pr_diff_size,
+            changed_files: $changed_files,
+            is_dirty: $is_dirty,
+            unresolved_threads: $unresolved_threads,
+            working_tree: {
+                staged_count: $staged_count,
+                staged_files: $staged_files,
+                unstaged_count: $unstaged_count,
+                unstaged_files: $unstaged_files,
+                untracked_count: $untracked_count,
+                untracked_files: $untracked_files
+            },
+            diff_path: $diff_path,
+            commit_log_path: $commit_log_path,
+            pr_diff_path: $pr_diff_path,
+            review_threads_path: $review_threads_path,
+            plan_target: $plan_target,
+            timestamp: $timestamp
+        }'
+
+	log_ok "Pre-phase complete. PR review contract emitted."
+}
+
+#------------------------------------------------------------------------------
+# Post: Read AI plan, stage files, validate, commit
+#------------------------------------------------------------------------------
+cmd_post() {
+	local repo_root
+	repo_root=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+	if [[ -z "$repo_root" ]]; then
+		log_err "Not a git repository"
+		echo '{"status":"FAILURE","reason":"Not a git repository"}'
+		exit 2
+	fi
+	cd "$repo_root"
+
+	local branch
+	branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+
+	# Read plan JSON from plan_target
+	local plan_target="${PLAN_TARGET:-}"
+	local commit_message="chore(pr-review): apply feedback from PR review"
+	local plan_files=()
+
+	if [[ -z "$plan_target" ]] || [[ ! -f "$plan_target" ]]; then
+		log_warn "PLAN_TARGET not set or file not found — staging all changes"
+		git add -A
+	else
+		commit_message=$(jq -r '.commit_message // "chore(pr-review): apply feedback from PR review"' "$plan_target")
+		plan_files=()
+		while IFS= read -r file; do
+			plan_files+=("$file")
+		done < <(jq -r '.files[] // empty' "$plan_target" 2>/dev/null || true)
+
+		if [[ ${#plan_files[@]} -eq 0 ]]; then
+			log_info "No specific files in plan — staging all changes"
+			git add -A
+		else
+			local existing_files=()
+			local skipped=0
+			for f in "${plan_files[@]}"; do
+				if [[ -f "$f" ]]; then
+					existing_files+=("$f")
+				else
+					skipped=$((skipped + 1))
+					log_warn "Skipping non-existent file: $f"
+				fi
+			done
+			if [[ ${#existing_files[@]} -eq 0 ]]; then
+				log_warn "No plan files exist in working tree — staging all changes"
+				git add -A
+			else
+				log_info "Staging ${#existing_files[@]} file(s) from plan"
+				git add "${existing_files[@]}"
+			fi
+		fi
+	fi
+
+	# Check for changes to commit
+	if git diff --cached --quiet 2>/dev/null; then
+		log_info "No changes to commit"
+		jq -n \
+			--arg status "SUCCESS" \
+			--arg branch "$branch" \
+			'{
+                status: $status,
+                branch: $branch,
+                commit_sha: null,
+                commit_message: "",
+                validation: {}
+            }'
+		return 0
+	fi
+
+	# Detect validation commands - prefer mise if available
+	local lint_command=""
+	local test_command=""
+	if [[ -f ".mise.toml" ]] && command -v mise &>/dev/null; then
+		test_command="mise run test"
+		lint_command="mise run lint"
+	elif [[ -f "mix.exs" ]]; then
+		test_command="mix test"
+		lint_command="mix format --check-formatted"
+	elif [[ -f "pyproject.toml" || -f "setup.py" ]]; then
+		test_command="pytest"
+		lint_command="ruff check ."
+	elif [[ -f "Cargo.toml" ]]; then
+		test_command="cargo test"
+		lint_command="cargo clippy"
+	elif [[ -f "go.mod" ]]; then
+		test_command="go test ./..."
+		lint_command="go vet ./..."
+	elif [[ -f "package.json" ]]; then
+		test_command="npm test"
+		lint_command="npm run lint"
+	fi
+
+	# Build lint scope — restrict to staged files where supported (skip for mise)
+	local lint_scope=""
+	local staged_files_list
+	staged_files_list=$(git diff --cached --name-only 2>/dev/null || true)
+	if [[ -n "$staged_files_list" ]] && [[ "$lint_command" != "mise run lint" ]]; then
+		# Scoped linters: ruff, eslint, go vet — accept file args
+		case "$lint_command" in
+		ruff*)
+			lint_scope=$(echo "$staged_files_list" | tr '\n' ' ')
+			;;
+		eslint* | npx*eslint*)
+			lint_scope=$(echo "$staged_files_list" | tr '\n' ' ')
+			;;
+		go\ vet*)
+			lint_scope=$(echo "$staged_files_list" | tr '\n' ' ')
+			;;
+		esac
+	fi
+
+	# Run lint (blocking — unstage on failure)
+	local lint_status="SKIPPED"
+	if [[ -n "$lint_command" ]]; then
+		local lint_cmd="$lint_command"
+		[[ -n "$lint_scope" ]] && lint_cmd="$lint_command $lint_scope"
+		local lint_output=""
+		local lint_exit=0
+		lint_output=$(eval "$lint_cmd" 2>&1) || lint_exit=$?
+		if [[ "$lint_exit" -eq 0 ]]; then
+			lint_status="PASS"
+			log_ok "Lint: PASS"
+		else
+			lint_status="FAIL"
+			log_err "Lint: FAIL — changes introduced issues"
+			echo "$lint_output" >&2
+			git reset HEAD &>/dev/null || true
+			jq -n \
+				--arg status "BLOCKED" \
+				--arg reason "Lint failure introduced by changes" \
+				--arg details "$lint_output" \
+				'{status:$status,reason:$reason,details:$details}'
+			return 0
+		fi
+	fi
+
+	# Run tests (blocking — unstage on failure)
+	local test_status="SKIPPED"
+	if [[ -n "$test_command" ]]; then
+		local test_output=""
+		local test_exit=0
+		test_output=$(eval "$test_command" 2>&1) || test_exit=$?
+		if [[ "$test_exit" -eq 0 ]]; then
+			test_status="PASS"
+			log_ok "Tests: PASS"
+		else
+			test_status="FAIL"
+			log_err "Tests: FAIL — changes introduced regressions"
+			echo "$test_output" >&2
+			git reset HEAD &>/dev/null || true
+			jq -n \
+				--arg status "BLOCKED" \
+				--arg reason "Test failure introduced by changes" \
+				--arg details "$test_output" \
+				'{status:$status,reason:$reason,details:$details}'
+			return 0
+		fi
+	fi
+
+	# Commit
+	local commit_sha=""
+	local commit_output=""
+	if commit_output=$(git commit -m "$commit_message" 2>&1); then
+		commit_sha=$(git rev-parse --short HEAD)
+		log_ok "Changes committed: $commit_sha - $commit_message"
+	else
+		log_warn "Commit failed: $commit_output"
+		jq -n \
+			--arg status "BLOCKED" \
+			--arg branch "$branch" \
+			--arg commit_message "$commit_message" \
+			--arg reason "$commit_output" \
+			'{
+                status: $status,
+                branch: $branch,
+                commit_sha: null,
+                commit_message: $commit_message,
+                reason: $reason,
+                validation: {}
+            }'
+		return 0
+	fi
+
+	# Emit result
+	jq -n \
+		--arg status "SUCCESS" \
+		--arg branch "$branch" \
+		--arg commit_sha "$commit_sha" \
+		--arg commit_message "$commit_message" \
+		--arg lint_status "$lint_status" \
+		--arg test_status "$test_status" \
+		'{
+            status: $status,
+            branch: $branch,
+            commit_sha: $commit_sha,
+            commit_message: $commit_message,
+            validation: {
+                lint_status: $lint_status,
+                test_status: $test_status
+            }
+        }'
+}
+
+#------------------------------------------------------------------------------
+# Submit: Push the committed changes to the remote
+#------------------------------------------------------------------------------
+cmd_submit() {
+	local repo_root
+	repo_root=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+	if [[ -z "$repo_root" ]]; then
+		log_err "Not a git repository"
+		echo '{"status":"FAILURE","reason":"Not a git repository"}'
+		exit 2
+	fi
+	cd "$repo_root"
+
+	local branch
+	branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+
+	log_info "Pushing $branch to origin..."
+	if git push origin "$branch" 2>&1; then
+		log_ok "Branch $branch pushed to origin"
+		jq -n \
+			--arg status "SUCCESS" \
+			--arg branch "$branch" \
+			'{
+                status: $status,
+                branch: $branch,
+                action: "pushed"
+            }'
+	else
+		log_err "Push failed"
+		jq -n \
+			--arg status "FAILURE" \
+			--arg branch "$branch" \
+			'{
+                status: $status,
+                branch: $branch,
+                action: "push_failed"
+            }'
+		exit 2
+	fi
+}
+
+#------------------------------------------------------------------------------
+# Dispatch
+#------------------------------------------------------------------------------
+
+if [[ $# -lt 1 ]]; then
+	echo "Usage: $SCRIPT_NAME <pre|post|submit>"
+	echo ""
+	echo "Subcommands:"
+	echo "  pre     - Gather PR review context, emit JSON contract to stdout"
+	echo "  post    - Read plan from PLAN_TARGET, stage files, validate, commit"
+	echo "  submit  - Push the committed changes to remote"
+	echo ""
+	echo "Environment variables for post:"
+	echo "  PLAN_TARGET    - Required: path to the AI-written plan JSON"
+	exit 1
+fi
+
+SUBCOMMAND="$1"
+shift
+
+case "$SUBCOMMAND" in
+pre) cmd_pre ;;
+post) cmd_post ;;
+submit) cmd_submit ;;
+-h | --help | help)
+	echo "Usage: $SCRIPT_NAME <pre|post|submit>"
+	echo ""
+	echo "  pre     - Gather PR review context, emit JSON contract to stdout"
+	echo "  post    - Read plan from PLAN_TARGET, stage files, validate, commit"
+	echo "  submit  - Push the committed changes to remote"
+	exit 0
+	;;
+*)
+	log_err "Unknown subcommand: $SUBCOMMAND"
+	exit 1
+	;;
+esac

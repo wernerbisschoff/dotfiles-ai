@@ -1,0 +1,116 @@
+---
+name: auditing-fp-purity
+description: "Use when: auditing code for side-effect isolation"
+category: GENERAL_CONTEXT_SKILLS
+version: 1.0.0
+aliases:
+  - purity-auditor
+  - fp-audit
+---
+
+# fp-purity-auditor
+
+## [OBJECTIVE]
+
+Identify hidden I/O or global state mutations and refactor calculations into pure functions where output is determined solely by input values, using an explicit separation of "Actions", "Calculations", and "Data".
+
+## [TRIGGER_CONDITIONS]
+
+Use this skill when the user:
+
+- Asks to “make this function pure”, “remove side effects”, “audit purity”, or “separate IO from logic”.
+- Shares code that mixes I/O (filesystem, network, DB, logging), time/randomness, or global state with business logic.
+- Requests a refactor toward functional design (Elixir, FP-style JS, Python FP patterns).
+
+## [INPUTS]
+
+- `[[SOURCE_CODE]]`: Source code snippet(s) to audit.
+- `[[CONSTRAINTS]]`: Stated constraints (language, performance, concurrency model, allowed dependencies).
+- `[[TESTS]]`: (Optional) Current tests or failing cases.
+
+## [EXECUTION_SEQUENCE]
+
+[STEP_1_INVENTORY_EFFECTS]
+
+Create an **Effect Inventory** by scanning the code and listing every potential "Action" site:
+
+- External I/O (DB, HTTP, filesystem, queues)
+- Logging/telemetry
+- Time/randomness/UUID generation
+- Reads/writes of global state, singletons, process dictionary, module attributes used as mutable config
+- Mutation of captured variables or shared references (where applicable)
+
+[STEP_2_CLASSIFY_ACTIONS_CALCULATIONS_DATA]
+
+For each named function/module region, classify each line or block into exactly one bucket:
+
+- **Actions**: performs side effects or depends on external state/time.
+- **Calculations**: deterministic; output depends only on explicit inputs.
+- **Data**: static values, immutable configuration passed in, constants.
+
+Record classification in a table: `Location -> Bucket -> Reason`.
+
+[STEP_3_ISOLATE_ACTION_BOUNDARIES]
+
+Refactor by introducing explicit boundaries:
+
+- Move "Actions" to the outer layer (entrypoints, adapters, callers).
+- Convert implicit dependencies into explicit parameters (e.g., `clock`, `rng`, `repo`, `http_client`, `logger`).
+- Ensure "Calculations" do not directly call "Actions".
+
+[STEP_4_EXTRACT_PURE_CALCULATIONS]
+
+Extract or rewrite "Calculations" as pure functions:
+
+- No hidden reads (env, globals, time, randomness).
+- No hidden writes (mutation, caching with shared state).
+- Return values are computed solely from provided inputs.
+
+[STEP_5_DEFINE_DATA_LAYER]
+
+Centralize "Data" into immutable structures:
+
+- Constants and lookup tables are values, not implicit reads.
+- Configuration is passed as `data`/`opts`/`config` input rather than fetched.
+
+[STEP_6_REWIRE_CALL_GRAPH]
+
+Recompose the program:
+
+- Outer "Actions" gather inputs, call "Calculations", then perform outputs.
+- Preserve behavior by keeping "Actions" semantics intact while relocating them.
+
+## [OUTPUT_CONTRACT]
+
+Produce a single report with these sections:
+
+1. `Effect_Inventory`: list of detected effects with locations.
+2. `Classification_Table`: rows of `{location, bucket: "Actions"|"Calculations"|"Data", rationale}`.
+3. `Refactor_Plan`: ordered steps describing boundary moves and extracted pure functions.
+4. `Pure_Functions`: list of extracted/rewritten pure functions with signatures.
+5. `Remaining_Impurities`: any unavoidable "Actions" and why.
+6. `Before_After_Snippets`: minimal before/after excerpts (non-exhaustive).
+
+If the user requests a machine-readable format, emit JSON with keys exactly:
+`Effect_Inventory`, `Classification_Table`, `Refactor_Plan`, `Pure_Functions`, `Remaining_Impurities`, `Before_After_Snippets`.
+
+## [VALIDATION_LOOP]
+
+1. **Validate Classification**: every block is labeled as "Actions", "Calculations", or "Data" with a reason.
+2. **Validate Purity** (for each "Calculation"):
+   - Inputs are explicit parameters only.
+   - No reads from time/random/env/globals.
+   - No writes/mutations that escape function scope.
+3. **Revalidate Boundaries**:
+   - "Actions" are only at boundaries (callers/adapters), not inside "Calculations".
+4. If any violation is found: revise the refactor plan and repeat steps 2–3.
+
+## [EDGE_CASE_HANDLING]
+
+- [MISSING_CODE]: Return only the requested report structure and list required missing inputs under `Remaining_Impurities`.
+- [MIXED_PURITY]: If a function mixes buckets, split into `action_*` wrapper + `calc_*` pure core + `data_*` values.
+- [TIME_RANDOMNESS]: Replace implicit calls with injected dependencies (`clock`, `rng`) and pass generated values into "Calculations".
+- [LOGGING_TELEMETRY]: Treat logging as an "Action"; return log events as data from "Calculations" when needed.
+- [CONCURRENCY_ASYNC]: Treat task spawning, message passing, and callbacks as "Actions"; move scheduling to boundaries and keep "Calculations" synchronous/pure.
+- [CACHE_MEMOIZATION]: If shared or global, treat as "Action"; if local and immutable, treat as "Data".
+- [HUGE_INPUT]: Apply classification per module/function; emit summaries first, then drill into hotspots.

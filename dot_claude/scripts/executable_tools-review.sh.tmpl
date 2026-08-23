@@ -1,0 +1,603 @@
+#!/usr/bin/env bash
+#
+# executable_review.sh - Orchestrator for the /review workflow
+#
+# This script wraps operational concerns of the code review workflow:
+#   - Repository validation
+#   - Git diff and branch state gathering
+#   - Safety scanning (sensitive file detection)
+#   - Review artifact persistence
+#
+# Usage:
+#   executable_review.sh pre
+#   executable_review.sh post
+#
+# The 'pre' subcommand emits a JSON contract to stdout with git state,
+# branch info, and diff context for the AI review agent. The 'post'
+# subcommand validates review artifacts and optionally commits them.
+#
+# Exit codes:
+#   0   Success
+#   1   Invalid arguments
+#   2   Pre-flight check failed (not a repo, merge conflict)
+#
+set -euo pipefail
+
+SCRIPT_NAME="$(basename "$0")"
+
+# Shared library: colors, logging, find_repo_root, create_temp_dir, etc.
+# shellcheck disable=SC1054,SC1009,SC1083,SC1073,SC1056,SC1072  # chezmoi template directive, not real bash
+{{ template "scripts/lib/common.sh.tmpl" . }}
+
+#------------------------------------------------------------------------------
+# Build a filtered file list excluding generated/binary/vendor files
+#------------------------------------------------------------------------------
+_build_filtered_file_list() {
+	local repo_root="$1"
+	shift
+
+	# Combine all provided file lists, sort unique
+	local all_files
+	all_files=$(printf '%s\n' "$@" | grep -v '^$' | sort -u)
+
+	# Build from the repo root for git check-ignore to work
+	cd "$repo_root"
+
+	# Filter: exclude patterns from SKILL.md breadth analysis
+	local filtered
+	filtered=$(echo "$all_files" |
+		grep -vE '\.(min\.js|min\.css|lock|generated\.|png|jpg|gif|woff|ttf|ico|svg|eot|woff2)$' |
+		grep -vE '^(dist/|build/|node_modules/|vendor/|third_party/|\.worktrees/|\.opencode/)' ||
+		true)
+
+	# Also exclude gitignored files (belt-and-suspenders — git already excludes
+	# these from tracked diffs, but untracked files may slip through)
+	local gitignored
+	gitignored=$(echo "$filtered" | git check-ignore --stdin 2>/dev/null || true)
+	local result
+	if [[ -n "$gitignored" ]]; then
+		result=$(echo "$filtered" | grep -vFf <(echo "$gitignored") || true)
+	else
+		result="$filtered"
+	fi
+
+	echo "$result" | grep -v '^$' | sort -u || true
+}
+
+#------------------------------------------------------------------------------
+# Find governance files (constitution, PRD)
+#------------------------------------------------------------------------------
+_find_governance_files() {
+	local repo_root="$1"
+	local constitution=""
+	local prd=""
+
+	if [[ -f "$repo_root/specs/constitution.md" ]]; then
+		constitution="$repo_root/specs/constitution.md"
+	elif [[ -f "$repo_root/docs/specs/constitution.md" ]]; then
+		constitution="$repo_root/docs/specs/constitution.md"
+	fi
+
+	# Try multiple common PRD locations
+	for candidate in \
+		"$repo_root/specs/PRD.md" \
+		"$repo_root/specs/prd.md" \
+		"$repo_root/PRD.md" \
+		"$repo_root/prd.md" \
+		"$repo_root/docs/PRD.md"; do
+		if [[ -f "$candidate" ]]; then
+			prd="$candidate"
+			break
+		fi
+	done
+
+	echo "$constitution|$prd"
+}
+
+#------------------------------------------------------------------------------
+# Resolve branch-specific artifacts from the branch name.
+#
+# Branch convention: feat/NNN-epic-name/NNN-issue-slug
+#   => epic prefix:  NNN-epic-name
+#   => issue prefix: NNN-issue-slug
+#
+# Artifacts resolved:
+#   spec:    specs/<epic>/<issue>/spec.md
+#   tasks:   specs/<epic>/<issue>/tasks.md
+#   prd:     specs/<epic>/prd.md
+#   design:  specs/<epic>/design.md
+#   data:    specs/<epic>/data-model.md
+#------------------------------------------------------------------------------
+_resolve_branch_artifacts() {
+	local repo_root="$1"
+	local branch="$2"
+
+	local spec_path="" tasks_path="" prd_path="" design_path="" data_model_path=""
+	local spec_found=false prd_found=false design_found=false data_model_found=false
+
+	# Parse branch: strip optional "feat/", "fix/", etc. prefix, then extract
+	# two NNN-name segments
+	local branch_name="$branch"
+	branch_name="${branch_name#*/}"
+
+	# Match pattern: NNN-name/NNN-name (issue-level branch)
+	if [[ "$branch_name" =~ ^([0-9]+-[^/]+)/([0-9]+-[^/]+) ]]; then
+		local epic="${BASH_REMATCH[1]}"
+		local issue="${BASH_REMATCH[2]}"
+
+		local spec_candidate="$repo_root/specs/$epic/$issue/spec.md"
+		local tasks_candidate="$repo_root/specs/$epic/$issue/tasks.md"
+		[[ -f "$spec_candidate" ]] && {
+			spec_path="$spec_candidate"
+			spec_found=true
+		}
+		[[ -f "$tasks_candidate" ]] && tasks_path="$tasks_candidate"
+
+		local prd_candidate="$repo_root/specs/$epic/prd.md"
+		local design_candidate="$repo_root/specs/$epic/design.md"
+		local data_candidate="$repo_root/specs/$epic/data-model.md"
+		[[ -f "$prd_candidate" ]] && {
+			prd_path="$prd_candidate"
+			prd_found=true
+		}
+		[[ -f "$design_candidate" ]] && {
+			design_path="$design_candidate"
+			design_found=true
+		}
+		[[ -f "$data_candidate" ]] && {
+			data_model_path="$data_candidate"
+			data_model_found=true
+		}
+
+	# Match pattern: NNN-name (epic-level branch)
+	elif [[ "$branch_name" =~ ^([0-9]+-[^/]+) ]]; then
+		local epic="${BASH_REMATCH[1]}"
+
+		local prd_candidate="$repo_root/specs/$epic/prd.md"
+		local design_candidate="$repo_root/specs/$epic/design.md"
+		local data_candidate="$repo_root/specs/$epic/data-model.md"
+		local spec_candidate="$repo_root/specs/$epic/spec.md"
+		[[ -f "$prd_candidate" ]] && {
+			prd_path="$prd_candidate"
+			prd_found=true
+		}
+		[[ -f "$design_candidate" ]] && {
+			design_path="$design_candidate"
+			design_found=true
+		}
+		[[ -f "$data_candidate" ]] && {
+			data_model_path="$data_candidate"
+			data_model_found=true
+		}
+		[[ -f "$spec_candidate" ]] && {
+			spec_path="$spec_candidate"
+			spec_found=true
+		}
+	fi
+
+	echo "$spec_path|$tasks_path|$prd_path|$design_path|$data_model_path"
+}
+
+#------------------------------------------------------------------------------
+# Pre: Gather git state, diff, branch info — emit JSON contract
+#------------------------------------------------------------------------------
+cmd_pre() {
+	# Validate repo
+	local repo_root
+	repo_root=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+	if [[ -z "$repo_root" ]]; then
+		echo '{"status":"FAILURE","reason":"Not a git repository"}'
+		exit 2
+	fi
+
+	# Check for merge conflicts
+	if ! git diff --check --cached 2>/dev/null; then
+		echo '{"status":"FAILURE","reason":"Merge conflict detected"}'
+		exit 2
+	fi
+
+	local branch
+	branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+
+	# Detect scope: is this a feature branch with commits ahead of main?
+	local is_feature_branch=false
+	case "$branch" in main | master | HEAD | unknown) ;; *) is_feature_branch=true ;; esac
+	local merge_base="" ahead_of_main=false
+	if [[ "$is_feature_branch" == true ]]; then
+		merge_base=$(git merge-base main HEAD 2>/dev/null || git merge-base master HEAD 2>/dev/null || echo "")
+		if [[ -n "$merge_base" ]] && ! git diff --quiet "$merge_base" HEAD 2>/dev/null; then
+			ahead_of_main=true
+		fi
+	fi
+
+	# Check for gh CLI availability
+	local gh_available=false
+	if command -v gh &>/dev/null; then
+		gh_available=true
+	else
+		log_warn "gh CLI not found — operating in degraded mode (no GitHub integration)"
+	fi
+
+	# Check for jq availability (required for JSON contract emission)
+	if ! command -v jq >/dev/null 2>&1; then
+		echo '{"status":"FAILURE","reason":"jq CLI not found — required for JSON contract emission"}'
+		exit 2
+	fi
+
+	# Gather git state using shared helper (working tree: staged/unstaged/untracked)
+	local git_state
+	git_state=$(gather_git_state) || exit 2
+
+	local staged_files unstaged_files untracked_files
+	local staged_count unstaged_count untracked_count
+	local staged_json unstaged_json untracked_json
+
+	staged_files=$(printf '%s' "$git_state" | jq -r '.staged_files')
+	unstaged_files=$(printf '%s' "$git_state" | jq -r '.unstaged_files')
+	untracked_files=$(printf '%s' "$git_state" | jq -r '.untracked_files')
+	staged_count=$(printf '%s' "$git_state" | jq -r '.staged_count')
+	unstaged_count=$(printf '%s' "$git_state" | jq -r '.unstaged_count')
+	untracked_count=$(printf '%s' "$git_state" | jq -r '.untracked_count')
+	staged_json=$(printf '%s' "$git_state" | jq -c '.staged_json')
+	unstaged_json=$(printf '%s' "$git_state" | jq -c '.unstaged_json')
+	untracked_json=$(printf '%s' "$git_state" | jq -c '.untracked_json')
+
+	local wt_changes=$((staged_count + unstaged_count + untracked_count))
+
+	# Gather branch state (commits ahead of merge-base with main)
+	local branch_files="" branch_commit_count=0 branch_json='[]'
+	local ahead_files="" ahead_count=0 ahead_json='[]'
+	if [[ "$ahead_of_main" == true ]]; then
+		branch_files=$(git diff --name-only "$merge_base" HEAD 2>/dev/null || true)
+		branch_commit_count=$(git rev-list --count "$merge_base"..HEAD 2>/dev/null || echo 0)
+		if [[ -n "$branch_files" ]]; then
+			local ahead_filtered
+			ahead_filtered=$(_build_filtered_file_list "$repo_root" "$branch_files")
+			ahead_files="$ahead_filtered"
+			ahead_count=$(echo "$ahead_filtered" | grep -c . 2>/dev/null || true)
+			ahead_json=$(echo "$ahead_filtered" | jq -R -s 'split("\n") | map(select(length > 0))')
+		fi
+	fi
+
+	local has_any_changes=false
+	[[ "$wt_changes" -gt 0 || "$ahead_count" -gt 0 ]] && has_any_changes=true
+
+	# No changes guard
+	if [[ "$has_any_changes" == false ]]; then
+		echo '{"status":"SUCCESS","has_changes":false,"reason":"No changes to review"}'
+		exit 0
+	fi
+
+	# Build filtered file list from the union of working tree + branch changes
+	local all_source=""
+	[[ "$wt_changes" -gt 0 ]] && all_source="$staged_files $unstaged_files $untracked_files"
+	[[ "$ahead_count" -gt 0 ]] && all_source="$all_source $branch_files"
+	# Split space-separated into newline-separated via tr
+	local newline_all filtered_file_list filtered_count filtered_json
+	newline_all=$(echo "$all_source" | tr ' ' '\n')
+	filtered_file_list=$(_build_filtered_file_list "$repo_root" "$newline_all")
+	filtered_count=$(echo "$filtered_file_list" | grep -c . || true)
+	if [[ "$filtered_count" -gt 0 ]]; then
+		filtered_json=$(echo "$filtered_file_list" | jq -R -s 'split("\n") | map(select(length > 0))')
+	else
+		filtered_json='[]'
+	fi
+
+	# Categorize filtered files for review strategy
+	local core_count test_count spec_count config_count prompt_count other_count
+	core_count=$(echo "$filtered_file_list" | grep -c '^src/' 2>/dev/null || true)
+	test_count=$(echo "$filtered_file_list" | grep -c '^tests/' 2>/dev/null || true)
+	spec_count=$(echo "$filtered_file_list" | grep -c '^specs/' 2>/dev/null || true)
+	config_count=$(echo "$filtered_file_list" | grep -cE '^\.(gitignore|editorconfig|env|mise)' 2>/dev/null || true)
+	prompt_count=$(echo "$filtered_file_list" | grep -c 'prompts/' 2>/dev/null || true)
+	other_count=$((filtered_count - core_count - test_count - spec_count - config_count - prompt_count))
+	[[ "$other_count" -lt 0 ]] && other_count=0
+
+	local review_strategy="full"
+
+	# Find governance files
+	local governance constitution_found=false prd_found=false
+	local constitution_path="" prd_path=""
+	governance=$(_find_governance_files "$repo_root")
+	constitution_path="${governance%%|*}"
+	prd_path="${governance##*|}"
+	[[ -n "$constitution_path" ]] && constitution_found=true
+	[[ -n "$prd_path" ]] && prd_found=true
+
+	# Resolve branch-specific artifacts (spec, tasks, prd, design, data-model)
+	local branch_artifacts spec_path="" tasks_path="" branch_prd_path="" design_path="" data_model_path=""
+	local spec_found=false branch_prd_found=false design_found=false data_model_found=false
+	branch_artifacts=$(_resolve_branch_artifacts "$repo_root" "$branch")
+	local IFS='|'
+	read -r spec_path tasks_path branch_prd_path design_path data_model_path <<<"$branch_artifacts"
+	unset IFS
+	[[ -n "$spec_path" ]] && spec_found=true
+	[[ -n "$branch_prd_path" ]] && branch_prd_found=true
+	[[ -n "$design_path" ]] && design_found=true
+	[[ -n "$data_model_path" ]] && data_model_found=true
+	# If branch-level PRD exists, prefer it over the generic one
+	if [[ "$branch_prd_found" == true ]]; then
+		prd_path="$branch_prd_path"
+		prd_found=true
+	fi
+
+	# Create temp dir for artifacts
+	local temp_dir
+	temp_dir=$(create_temp_dir "review-phase") || exit 2
+	local diff_path="$temp_dir/DIFF"
+	local staged_diff_path="$temp_dir/STAGED_DIFF"
+	local unstaged_diff_path="$temp_dir/UNSTAGED_DIFF"
+	local branch_diff_path="$temp_dir/BRANCH_DIFF"
+	local stat_path="$temp_dir/STAT"
+	local recent_commits_path="$temp_dir/RECENT_COMMITS"
+	local changed_files_path="$temp_dir/CHANGED_FILES"
+	local metadata_path="$temp_dir/.review-metadata"
+
+	# Persist temp dir path for post-phase lookup
+	echo "TEMP_DIR=$temp_dir" >"$metadata_path"
+
+	# Write working tree diffs (staged + unstaged)
+	git diff --cached -- . >"$staged_diff_path" 2>/dev/null || true
+	git diff -- . >"$unstaged_diff_path" 2>/dev/null || true
+
+	# Write branch diff (commits ahead of merge-base with main)
+	if [[ "$ahead_of_main" == true ]]; then
+		git diff "$merge_base"...HEAD -- . >"$branch_diff_path" 2>/dev/null || true
+	fi
+
+	# Write combined diff: branch diff first (if any), then working tree
+	{
+		[[ "$ahead_of_main" == true ]] && cat "$branch_diff_path" 2>/dev/null
+		cat "$staged_diff_path" 2>/dev/null
+		cat "$unstaged_diff_path" 2>/dev/null
+	} >"$diff_path" 2>/dev/null || true
+
+	# Write changed files list (combined scope)
+	{
+		[[ "$ahead_of_main" == true ]] && git diff --name-only "$merge_base" HEAD 2>/dev/null
+		git diff --cached --name-only 2>/dev/null
+		git diff --name-only 2>/dev/null
+	} | sort -u >"$changed_files_path" 2>/dev/null || true
+
+	local staged_diff_size unstaged_diff_size branch_diff_size total_diff_size
+	staged_diff_size=$(wc -l <"$staged_diff_path" | tr -d ' ')
+	unstaged_diff_size=$(wc -l <"$unstaged_diff_path" | tr -d ' ')
+	branch_diff_size=0
+	[[ -f "$branch_diff_path" ]] && branch_diff_size=$(wc -l <"$branch_diff_path" | tr -d ' ')
+	total_diff_size=$((staged_diff_size + unstaged_diff_size + branch_diff_size))
+
+	# Recompute review strategy now that diff sizes are known
+	if [[ "$filtered_count" -gt 15 || "$total_diff_size" -gt 20000 ]]; then
+		review_strategy="targeted"
+	elif [[ "$filtered_count" -gt 5 || "$total_diff_size" -gt 5000 ]]; then
+		review_strategy="diff_first"
+	fi
+
+	# Write stat (working tree + branch)
+	{
+		[[ "$ahead_of_main" == true ]] && git diff "$merge_base"...HEAD --stat 2>/dev/null
+		git diff --cached --stat 2>/dev/null
+		git diff --stat 2>/dev/null
+	} >"$stat_path" 2>/dev/null || true
+
+	# Write recent commits (branch commits if ahead, otherwise last 10)
+	if [[ "$ahead_of_main" == true ]]; then
+		git --no-pager log --oneline --decorate "$merge_base"...HEAD >"$recent_commits_path" 2>/dev/null || true
+	else
+		git --no-pager log --oneline --decorate -10 >"$recent_commits_path" 2>/dev/null || true
+	fi
+
+	# Emit contract
+	jq -n \
+		--arg phase "review" \
+		--arg branch "$branch" \
+		--arg repo_root "$repo_root" \
+		--argjson has_changes true \
+		--argjson staged_files "$staged_json" \
+		--argjson unstaged_files "$unstaged_json" \
+		--argjson untracked_files "$untracked_json" \
+		--argjson staged_count $staged_count \
+		--argjson unstaged_count $unstaged_count \
+		--argjson untracked_count $untracked_count \
+		--argjson wt_changes $wt_changes \
+		--argjson ahead_files "$ahead_json" \
+		--argjson ahead_count $ahead_count \
+		--argjson branch_commit_count $branch_commit_count \
+		--argjson is_feature_branch "$is_feature_branch" \
+		--argjson ahead_of_main "$ahead_of_main" \
+		--arg merge_base "${merge_base:-}" \
+		--argjson filtered_files "$filtered_json" \
+		--argjson filtered_count $filtered_count \
+		--arg review_strategy "$review_strategy" \
+		--argjson core_count $core_count \
+		--argjson test_count $test_count \
+		--argjson spec_count $spec_count \
+		--argjson config_count $config_count \
+		--argjson prompt_count $prompt_count \
+		--argjson other_count $other_count \
+		--argjson staged_diff_size $staged_diff_size \
+		--argjson unstaged_diff_size $unstaged_diff_size \
+		--argjson branch_diff_size $branch_diff_size \
+		--argjson total_diff_size $total_diff_size \
+		--arg diff_path "$diff_path" \
+		--arg staged_diff_path "$staged_diff_path" \
+		--arg unstaged_diff_path "$unstaged_diff_path" \
+		--arg branch_diff_path "$branch_diff_path" \
+		--arg stat_path "$stat_path" \
+		--arg recent_commits_path "$recent_commits_path" \
+		--arg changed_files_path "$changed_files_path" \
+		--argjson gh_available "$gh_available" \
+		--argjson constitution_found "$constitution_found" \
+		--arg constitution_path "$constitution_path" \
+		--argjson prd_found "$prd_found" \
+		--arg prd_path "$prd_path" \
+		--argjson spec_found "$spec_found" \
+		--arg spec_path "$spec_path" \
+		--arg tasks_path "$tasks_path" \
+		--argjson design_found "$design_found" \
+		--arg design_path "$design_path" \
+		--argjson data_model_found "$data_model_found" \
+		--arg data_model_path "$data_model_path" \
+		--arg metadata_path "$metadata_path" \
+		--arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+		'{
+            phase: $phase,
+            status: "READY",
+            branch: $branch,
+            repo_root: $repo_root,
+            has_changes: $has_changes,
+            gh_available: $gh_available,
+            files: {
+                staged: $staged_files,
+                staged_count: $staged_count,
+                unstaged: $unstaged_files,
+                unstaged_count: $unstaged_count,
+                untracked: $untracked_files,
+                untracked_count: $untracked_count,
+                wt_changes: $wt_changes,
+                ahead_files: $ahead_files,
+                ahead_count: $ahead_count,
+                branch_commit_count: $branch_commit_count,
+                filtered: $filtered_files,
+                filtered_count: $filtered_count,
+                review_strategy: $review_strategy,
+                categories: {
+                    core: $core_count,
+                    tests: $test_count,
+                    specs: $spec_count,
+                    config: $config_count,
+                    prompts: $prompt_count,
+                    other: $other_count
+                }
+            },
+            scope: {
+                is_feature_branch: $is_feature_branch,
+                ahead_of_main: $ahead_of_main,
+                merge_base: $merge_base
+            },
+            governance: {
+                constitution_found: $constitution_found,
+                constitution_path: $constitution_path,
+                prd_found: $prd_found,
+                prd_path: $prd_path,
+                spec_found: $spec_found,
+                spec_path: $spec_path,
+                tasks_path: $tasks_path,
+                design_found: $design_found,
+                design_path: $design_path,
+                data_model_found: $data_model_found,
+                data_model_path: $data_model_path
+            },
+            diff_path: $diff_path,
+            staged_diff_path: $staged_diff_path,
+            unstaged_diff_path: $unstaged_diff_path,
+            branch_diff_path: $branch_diff_path,
+            changed_files_path: $changed_files_path,
+            staged_diff_size: $staged_diff_size,
+            unstaged_diff_size: $unstaged_diff_size,
+            branch_diff_size: $branch_diff_size,
+            total_diff_size: $total_diff_size,
+            stat_path: $stat_path,
+            recent_commits_path: $recent_commits_path,
+            metadata_path: $metadata_path,
+            timestamp: $timestamp
+        }'
+
+	log_ok "Pre-phase complete. Review contract emitted."
+}
+
+#------------------------------------------------------------------------------
+# Post: Validate review artifacts and optionally persist
+#------------------------------------------------------------------------------
+cmd_post() {
+	# Validate repo
+	local repo_root
+	repo_root=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+	if [[ -z "$repo_root" ]]; then
+		log_err "Not a git repository"
+		echo '{"status":"FAILURE","reason":"Not a git repository"}'
+		exit 2
+	fi
+
+	local review_artifact="${REVIEW_OUTPUT:-}"
+
+	# If REVIEW_OUTPUT not set, look for metadata file from most recent pre-phase
+	if [[ -z "$review_artifact" ]]; then
+		local temp_base
+		if [ -n "${TMPDIR:-}" ]; then
+			temp_base="$TMPDIR"
+		else
+			temp_base="${XDG_STATE_HOME:-${HOME}/.local/state}/agent-artifacts"
+		fi
+		local metadata_file
+		metadata_file=$(ls -t "$temp_base"/review-phase*/.review-metadata 2>/dev/null | head -1 || true)
+		if [[ -n "$metadata_file" ]]; then
+			local temp_dir
+			temp_dir=$(dirname "$metadata_file")
+			review_artifact="$temp_dir/review-report.md"
+			log_info "Resolved review artifact from metadata: $review_artifact"
+		fi
+	fi
+
+	local status="SUCCESS"
+	local report_path=""
+
+	if [[ -n "$review_artifact" ]] && [[ -f "$review_artifact" ]]; then
+		log_info "Review artifact found at $review_artifact"
+
+		# Copy artifact to repo root for persistence
+		report_path="$repo_root/review-report.md"
+		cp "$review_artifact" "$report_path"
+		log_ok "Review report saved to $report_path"
+
+		# Stage the review report
+		cd "$repo_root"
+		git add "review-report.md" 2>/dev/null || log_warn "Could not stage review report"
+
+		log_ok "Review artifacts staged. Ready for commit."
+	else
+		log_info "No review artifact provided — review was likely advisory only"
+		status="SUCCESS"
+	fi
+
+	# Emit status
+	jq -n \
+		--arg status "$status" \
+		--arg report_path "${report_path:-}" \
+		'{
+            status: $status,
+            report_path: $report_path
+        }'
+}
+
+#------------------------------------------------------------------------------
+# Dispatch
+#------------------------------------------------------------------------------
+
+if [[ $# -lt 1 ]]; then
+	echo "Usage: $SCRIPT_NAME <pre|post>"
+	echo ""
+	echo "Subcommands:"
+	echo "  pre     - Gather git state, diff, emit JSON contract to stdout"
+	echo "  post    - Validate review artifacts and persist (reads REVIEW_OUTPUT env)"
+	exit 1
+fi
+
+SUBCOMMAND="$1"
+shift
+
+case "$SUBCOMMAND" in
+pre) cmd_pre ;;
+post) cmd_post ;;
+-h | --help | help)
+	echo "Usage: $SCRIPT_NAME <pre|post>"
+	echo ""
+	echo "  pre     - Gather git state, diff, emit JSON contract to stdout"
+	echo "  post    - Validate review artifacts and persist (reads REVIEW_OUTPUT env)"
+	exit 0
+	;;
+*)
+	log_err "Unknown subcommand: $SUBCOMMAND"
+	exit 1
+	;;
+esac

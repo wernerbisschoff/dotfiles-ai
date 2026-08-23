@@ -1,0 +1,53 @@
+## [OBJECTIVE]
+
+Call the native `index_codebase` tool **once** to build or refresh the local semantic-search index. It is provided by the installed `open-codebase-index` package/plugin, not by MCP.
+
+## [SIGNATURE]
+
+```
+index_codebase(
+  force?: boolean,          // default false — incremental re-index
+  estimateOnly?: boolean,   // default false — cost estimate only
+  verbose?: boolean         // default false — surface skipped files / parse failures
+)
+```
+
+## [ARGUMENT_PARSING]
+
+`$ARGUMENTS` is whitespace-separated flags. Map each token to a parameter:
+
+| Token      | Sets                |
+|------------|---------------------|
+| `force`    | `force=true`        |
+| `estimate` | `estimateOnly=true` |
+| `verbose`  | `verbose=true`      |
+
+Unknown tokens: ignore them. Empty `$ARGUMENTS` is the common case — all flags default to `false`.
+
+## [EXECUTION]
+
+1. **Announce** — print one line:
+   ```
+   → index_codebase(force=<bool>, estimateOnly=<bool>, verbose=<bool>)
+   ```
+2. **Call** `index_codebase` directly exactly once. Do not use `mcp`, an `mcp__*` alias, `bash`, `find`, `glob`, or `ls`.
+3. **Report** — print the tool's return value verbatim under `## Result`.
+
+## [OUTPUT]
+
+Your entire response is exactly this block:
+
+```markdown
+→ index_codebase(force=<bool>, estimateOnly=<bool>, verbose=<bool>)
+
+## Result
+<tool return value, unmodified>
+```
+
+Nothing else. No follow-up suggestions.
+
+<context>
+<user_input>
+$ARGUMENTS
+</user_input>
+</context>

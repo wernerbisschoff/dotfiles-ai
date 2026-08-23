@@ -1,0 +1,328 @@
+---
+name: merge-conflict-resolver
+description: "Use when: resolving merge conflicts or rebasing"
+category: GENERAL_CONTEXT_SKILLS
+version: 1.0.0
+aliases:
+  - conflict-resolver
+  - git-conflicts
+  - merge-resolution
+---
+
+# merge-conflict-resolver
+
+## [OBJECTIVE]
+
+Resolve git merge/rebase conflicts with meticulous attention to preserving all features and functionality from both branches, then provide a comprehensive summary explaining what caused each conflict and the reasoning behind each resolution.
+
+## [TRIGGER_CONDITIONS]
+
+Use when the user:
+
+- Is in the middle of a merge or rebase with conflicts
+- Asks for help resolving git conflicts
+- Sees `CONFLICT (content): Merge conflict in <file>` messages
+- Has unmerged paths in `git status`
+- Needs to abort, continue, or complete a merge/rebase operation
+- Wants to understand why conflicts occurred
+
+## [INPUTS]
+
+- `[[CONFLICT_STATE]]`: Output of `git status` showing conflicted files
+- `[[CONFLICT_FILES]]`: List of files with conflicts (from `git diff --name-only --diff-filter=U`)
+- `[[BRANCH_CONTEXT]]`: The branches being merged/rebased (source and target)
+- `[[USER_INTENT]]`: Any specific preferences for resolution (prefer theirs, ours, or merge both)
+
+## [EXECUTION_SEQUENCE]
+
+[STEP_1_SITUATION_ASSESSMENT]
+
+- Run `git status` to identify all conflicted files
+- Run `git log --oneline -5` on both branches to understand recent changes
+- Determine if this is a merge or rebase scenario
+- Identify the base branch and incoming branch
+
+[STEP_2_CONFLICT_INVENTORY]
+
+For each conflicted file:
+
+- Run `git diff --check` to see conflict markers
+- Count and categorize conflicts:
+  - **Content conflicts**: Both sides modified the same lines
+  - **Rename/delete conflicts**: One side renamed, other deleted
+  - **Add/add conflicts**: Both sides added files with same name
+  - **Modify/delete conflicts**: One side modified, other deleted
+
+[STEP_3_SEMANTIC_ANALYSIS]
+
+For each conflict:
+
+- Read the file content with conflict markers (`<<<<<<<`, `=======`, `>>>>>>>`, or diff3 format with `|||||||` for the common ancestor)
+- Identify what each side is trying to achieve:
+  - What feature/fix does HEAD (current branch) introduce?
+  - What feature/fix does the incoming branch introduce?
+- Determine if changes are:
+  - **Independent**: Can coexist without issues
+  - **Overlapping**: Modify same logic but can be combined
+  - **Contradictory**: Mutually exclusive, requires decision
+
+[STEP_4_RESOLUTION_STRATEGY]
+
+Choose resolution approach per conflict:
+
+- **Both (merge)**: Combine changes preserving all functionality
+- **Ours**: Keep current branch changes (when incoming is obsolete)
+- **Theirs**: Take incoming changes (when current is superseded)
+- **Custom**: Manual combination with semantic understanding
+
+**Critical Rule**: Default to merging both sides unless there's a clear semantic reason to prefer one.
+
+[STEP_5_RESOLUTION_EXECUTION]
+
+For each conflicted file:
+
+1. Read the full file with conflict markers
+2. Resolve each conflict section:
+   - Preserve all non-conflicting changes from both sides
+   - Merge conflicting sections maintaining both features
+   - Ensure syntactic correctness (balanced braces, valid syntax)
+3. Write the resolved file
+4. Stage with `git add <file>`
+
+[STEP_6_VERIFICATION]
+
+After resolving all conflicts:
+
+- Run syntax/type checks if available (`npm run lint`, `mix compile`, etc.)
+- Run tests if available (`npm test`, `mix test`, etc.)
+- Verify `git status` shows no unmerged paths
+- Run `git diff --cached` to review all staged changes
+
+[STEP_7_COMPLETION]
+
+- For merge: `git commit` (or `git merge --continue`)
+- For rebase: `git rebase --continue`
+- If issues remain: address before finalizing
+
+## [RESOLUTION_PATTERNS]
+
+[PATTERN_INDEPENDENT_CHANGES]
+
+When changes are in different parts of the same section:
+
+```
+# HEAD: Added feature A
+def process(data) do
+  validate(data)
+  feature_a(data)  # <-- from HEAD
+  save(data)
+end
+
+# Incoming: Added feature B
+def process(data) do
+  validate(data)
+  feature_b(data)  # <-- from incoming
+  save(data)
+end
+
+# RESOLVED: Both features preserved
+def process(data) do
+  validate(data)
+  feature_a(data)
+  feature_b(data)
+  save(data)
+end
+```
+
+[PATTERN_ADJACENT_LINES]
+
+When changes are adjacent but not overlapping:
+
+```
+# HEAD: Changed line 10
+# Incoming: Changed line 11
+# RESOLVED: Both changes preserved in sequence
+```
+
+[PATTERN_SAME_LINE_DIFFERENT_INTENT]
+
+When both sides modify the same line differently:
+
+```
+# HEAD: version = "2.0.0"
+# Incoming: version = "2.1.0-beta"
+# ANALYSIS: Determine which version is correct or if they should be combined
+# RESOLVED: version = "2.1.0" (if 2.1.0 supersedes 2.0.0)
+```
+
+[PATTERN_FUNCTION_SIGNATURE]
+
+When function signatures differ:
+
+```
+# HEAD: def calculate(a, b, opts \\ [])
+# Incoming: def calculate(a, b, c, opts \\ [])
+# RESOLVED: def calculate(a, b, c \\ nil, opts \\ [])
+# Note: Preserve all parameters, use defaults for compatibility
+```
+
+## [OUTPUT_CONTRACT]
+
+After resolution, provide:
+
+### Conflict Summary Table
+
+| File | Conflict Type | Root Cause | Resolution | Outcome |
+|------|---------------|------------|------------|---------|
+| path/to/file.ex | Content | Both modified `process/1` | Merged both | Features A + B preserved |
+| lib/config.ex | Modify/Delete | HEAD modified, incoming deleted | Kept modification | Config preserved |
+
+### Detailed Resolution Log
+
+For each resolved conflict:
+
+1. **File**: `path/to/file.ex`
+2. **Location**: Lines 45-52
+3. **Root Cause**: Why did the conflict occur?
+   - Example: "Both branches added different validation steps to the same pipeline"
+4. **HEAD Changes**: What the current branch was doing
+5. **Incoming Changes**: What the other branch was doing
+6. **Resolution Decision**: Why this resolution approach?
+7. **Outcome**: What functionality is preserved
+
+### Verification Results
+
+- Syntax check: PASSED/FAILED
+- Tests: PASSED/FAILED/SKIPPED
+- Staged files: X files ready for commit
+
+## [VALIDATION_LOOP]
+
+[VALIDATE_1_NO_UNMERGED]
+
+```bash
+git diff --name-only --diff-filter=U
+# Must return empty
+```
+
+[VALIDATE_2_SYNTAX]
+
+- Run language-appropriate syntax check
+- If failed: identify and fix syntax errors from merge
+
+[VALIDATE_3_TESTS]
+
+- Run test suite
+- If failed: analyze failures for merge-related issues
+- Re-resolve conflicts if tests reveal lost functionality
+
+[VALIDATE_4_SEMANTIC_REVIEW]
+
+- Review `git diff --cached` for:
+  - Accidental deletions
+  - Duplicate code
+  - Logic gaps
+  - Missing imports/dependencies
+
+## [EDGE_CASE_HANDLING]
+
+[ABORT_SCENARIO]
+
+If user wants to abort:
+
+```bash
+# For merge
+git merge --abort
+
+# For rebase
+git rebase --abort
+```
+
+[COMPLEX_CONFLICT]
+
+If a conflict is too complex to resolve automatically:
+
+1. Explain the conflict clearly to user
+2. Present both sides with context
+3. Ask user for decision with `AskUser` tool
+4. Document user's decision in resolution summary
+
+[BINARY_FILES]
+
+For binary file conflicts:
+
+- Explain which version will be used
+- Binary files cannot be merged; must choose one side
+- Document the choice
+
+[RENAME_CONFLICTS]
+
+For rename/delete or rename/rename conflicts:
+
+- Explain what each branch did
+- Determine correct destination
+- May need `git rm` or `git mv` commands
+
+[MULTIPLE_CONFLICTS_SAME_FILE]
+
+When one file has many conflicts:
+
+- Resolve all conflicts in single pass
+- Maintain consistency across the file
+- Verify overall file coherence before staging
+
+## [SUMMARY_TEMPLATE]
+
+After successful resolution, output:
+
+```
+## Merge Conflict Resolution Summary
+
+### Overview
+- **Type**: Merge/Rebase
+- **Base Branch**: <branch>
+- **Incoming Branch**: <branch>
+- **Total Conflicts**: X files, Y conflict sections
+- **Resolution Status**: SUCCESS/NEEDS ATTENTION
+
+### Root Causes
+
+1. **<Category>**: <description of why conflicts occurred>
+   - Affected files: <list>
+   - Example: "Both branches modified the user authentication flow independently"
+
+### Resolution Details
+
+| # | File | Conflict | Root Cause | Resolution |
+|---|------|----------|------------|------------|
+| 1 | `path/file.ex` | Lines 10-15 | Both added imports | Combined all imports |
+| 2 | `lib/auth.ex` | Lines 45-60 | Competing validations | Sequential validation chain |
+| ... | ... | ... | ... | ... |
+
+### Features Preserved
+
+From **HEAD** (<branch>):
+- Feature A: <description>
+- Feature B: <description>
+
+From **Incoming** (<branch>):
+- Feature C: <description>
+- Feature D: <description>
+
+### Verification
+- [ ] Syntax check passed
+- [ ] Tests passed
+- [ ] No unmerged paths remain
+
+### Next Steps
+<git commit/rebase --continue command or further actions needed>
+```
+
+## [SAFETY_RULES]
+
+- **NEVER** use `git commit --no-verify` to bypass pre-commit hooks during conflict resolution
+- **NEVER** resolve conflicts by blindly accepting one side without analysis
+- **NEVER** stage files without reviewing the resolved content
+- **ALWAYS** verify no functionality is lost before finalizing
+- **ALWAYS** run available tests after resolution
+- **ALWAYS** provide clear documentation of what was resolved and why

@@ -1,0 +1,26 @@
+{
+  "provider": "minimax",
+  "model": "MiniMax-M3",
+  "compaction": {
+    "enabled": true,
+    "reserveTokens": 10000
+  },
+  "theme": "{{ if eq .chezmoi.hostname "werner-desktop" }}omarchy-system{{ else }}dark{{ end }}",
+  "quietStartup": true,
+  "lastChangelogVersion": "0.84.2",
+  "packages": [
+    "npm:pi-mcp-adapter",
+    "npm:pi-web-access",
+    "npm:pi-hashline-edit",
+    "npm:pi-lmstudio",
+    "npm:pi-advisor",
+    "npm:open-codebase-index",
+    "npm:@vigolium/piolium",
+    "npm:pi-theme-sync"
+  ],
+  "defaultProvider": "cursor",
+  "defaultModel": "cursor-grok-4.6-medium-fast",
+  "treeFilterMode": "user-only",
+  "hideThinkingBlock": true,
+  "defaultThinkingLevel": "off"
+}

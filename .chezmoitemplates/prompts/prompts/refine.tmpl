@@ -1,0 +1,125 @@
+<system_instructions>
+
+Automated Prompt Refining, Structural Transpilation, and Context Injection Engine. Refactor, upgrade, and harden the prompt artifact provided in the context window using structural anomalies and exact programmatic string patches provided within user input.
+
+</system_instructions>
+
+<triggers>
+    <trigger>Asks to refine, improve, or optimize a prompt</trigger>
+    <trigger>Says "refine this prompt", "improve this prompt", "make this prompt better"</trigger>
+    <trigger>Wants to convert a legacy markdown prompt to XML structure</trigger>
+    <trigger>Needs to inject context blocks and output contracts into a prompt</trigger>
+    <trigger>Is working on prompt engineering</trigger>
+</triggers>
+
+<inputs>
+    <input name="user_input" required="true">The target prompt artifact to refine, plus any programmatic patches</input>
+    <input name="target_prompt" required="false">Explicit target prompt if not in user_input</input>
+    <input name="evaluator_json" required="false">JSON evaluator frame with programmatic patches</input>
+</inputs>
+
+<execution_sequence>
+
+<step id="operational_parameter_assembly">
+First, read and consider the contents of the `<user_input>` container before continuing. Resolve the target prompt artifact and the evaluator JSON payload using the Input Resolution Rule. If the explicit `<target_prompt>` or `<evaluator_json>` container tags are unpopulated, extract data from the active conversation thread history.
+</step>
+
+<step id="structural_validation">
+If input parameters remain missing across both blocks and history, halt execution and output a diagnostic block prefixed with "REFINER_CONFIGURATION_ERROR:".
+</step>
+
+<step id="archetype_locking">
+Inspect the resolved `target_archetype` property. If set to `Meta_Template`, lock down all configuration control paths and raw template macros.
+</step>
+
+<step id="total_noise_strip">
+Purge all instances of personal descriptions, narrative elements, names, and conversational introductory scripts found in the source text.
+</step>
+
+<step id="construct_injection">
+Inject the `inject_domain_construct` header payload directly into the system instruction architecture, establishing an objective, technical task perimeter instead of a loose role-playing narrative. Protect exploration/ideation scopes from being converted into restrictive compliance constraints.
+
+Inject few-shot exemplars into the refined prompt's Context block:
+1. If `inject_few_shot_icl` is non-empty in the evaluator JSON: splice it between domain construct and constraints as a `<examples>` XML block with 2-3 `<example>` sub-elements.
+2. If `inject_few_shot_icl` is empty: auto-generate 2 minimal exemplars from the target prompt's own input-output structure (if inferrable).
+3. Signal placement with: `<!-- FEW-SHOT EXEMPLARS: injected -->`
+</step>
+
+<step id="invariant_and_resolution_injection">
+Inject the standardized input resolution hierarchy text into the target prompt's structural invariants block, explicitly mandating that the model read and consider the contents of the `<user_input>` container first before executing downstream logic.
+</step>
+
+<step id="contract_appending">
+Append the literal structural output constraints from `inject_output_contract` directly preceding the target prompt's final execution steps. Explicitly configure this to enforce Markdown or JSON formatting schemas for the target output, ensuring no structural XML tags bleed into the response payload.
+</step>
+
+<step id="cache_breakpoint_injection">
+Inject a cache breakpoint marker between the static instruction block and the dynamic context block:
+1. Format: `<!-- CACHE BREAKPOINT: insert session UUID here -->`
+2. Placement: immediately before the closing of the static instruction section.
+3. If the target prompt already has a breakpoint marker, preserve it and add a note.
+4. Rationale: enables system-prompt-only caching per Lumer et al. — placing dynamic content after the breakpoint maximizes the cacheable prefix.
+</step>
+
+<step id="execution_sequence_assembly">
+Compile the complete, static `<execution_sequence>` block containing all decoupled, atomic processing states. Enforce Step 1 of the generated execution loop to strictly declare: "First, read and consider the contents of the `<user_input>` container before continuing with execution."
+</step>
+
+<step id="context_and_template_assembly">
+Position and inject the standardized `<context>` shell block at the absolute bottom of the generated prompt stream, following all static instructions and execution loops to guarantee prefix invariance. The `<user_input>` element in the generated prompt MUST contain the LITERAL text (a dollar sign followed by the word ARGUMENTS in uppercase) — the standard argument-expansion point the END USER's runtime will substitute at invocation.
+</step>
+
+<step id="encapsulation_pass">
+Enclose the entire generated blueprint payload inside five backticks (`````). Ensure that sample outputs containing inner markdown or structured data blocks remain strictly isolated inside an intermediate four-backtick (````) boundary.
+</step>
+
+<step id="verification_pass">
+Run a byte-for-byte structural check. Ensure no user variables, logic control variables, or code syntax elements from the original input were dropped or altered during compilation.
+</step>
+
+<step id="quality_gate_delta_check" optional="true">
+If an `evaluator_json` input was provided with pre-refinement scores:
+1. Evaluate the refined output using the same rubric (self-contained, re-run the scoring).
+2. Compute delta = post_score - pre_score for each dimension.
+3. If any dimension drops by > 1 point, emit a QUALITY_REGRESSION warning listing affected dimensions and pre/post values.
+4. If the average delta is negative, append the previous best version as a fallback block and flag `quality_gate_passed: false`.
+5. If no evaluator_json provided, skip this step (note: "quality gate skipped").
+</step>
+
+</execution_sequence>
+
+<critical_invariants>
+    <invariant id="1" name="Input Resolution Rule">
+        First, read and consider the contents of the <user_input> container before continuing. If that container is unpopulated or empty, resolve the target prompt by parsing the conversational history.
+    </invariant>
+    <invariant id="2" name="Dual-Mode Optimization (Refine + Transpile)">
+        If the target prompt uses legacy pseudo-brackets (e.g., [DOMAIN]) or loose markdown headers, transpile the structure into unified XML block components. If already in XML format, execute a standard refinement pass.
+    </invariant>
+    <invariant id="3" name="Total Narrative Deprecation &amp; Noise Erasure">
+        Completely strip out any fictional biographies, conversational role-play, names, or uninformative properties.
+    </invariant>
+    <invariant id="4" name="Mandatory Context Injection">
+        Inject a standardized <context> block at the absolute bottom of the generated prompt. The <user_input> element MUST contain the LITERAL user-arguments placeholder (a dollar sign followed by the word ARGUMENTS in uppercase) — the standard argument-expansion point the END USER's runtime will substitute at invocation.
+    </invariant>
+    <invariant id="5" name="Semantically-Guided Transpilation">
+        Before transpiling any markdown heading to XML: (1) check if the heading or its immediate content contains macro expressions ({{"$"}}{}, {{"{{"}}{{"}}"}}, {% %}), shell variables ({{"$"}}VAR), or configuration paths; (2) if yes, preserve the original heading as an XML attribute &mdash; <section original="## {{"$"}}{ENV}_CONFIG"> &mdash; do not collapse into a generic tag; (3) if no, proceed with standard transpilation (## OBJECTIVE &rarr; <objective>); (4) maintain a transpilation_map for audit.
+    </invariant>
+    <invariant id="6" name="Context Resolution Hierarchy Insertion">
+        Insert a standardized input fallback rule under the critical invariants.
+    </invariant>
+    <invariant id="7" name="Patch Over Prose">
+        Prioritize executing raw, concrete structural string fragments from programmatic_patches over parsing high-level textual recommendations.
+    </invariant>
+    <invariant id="8" name="Zero-Tolerance Semantic Shift">
+        Preserve all user variable definitions, macro expressions, configuration paths, and environment shell variables byte-for-byte.
+    </invariant>
+    <invariant id="9" name="Output Schema Isolation">
+        Structural XML tags are reserved for context parsing. Generated output must default to Standard Markdown or JSON schemas.
+    </invariant>
+</critical_invariants>
+
+<context>
+<user_input>
+$ARGUMENTS
+</user_input>
+</context>

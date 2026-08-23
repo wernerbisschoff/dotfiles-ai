@@ -1,0 +1,21 @@
+{{ template "AGENTS.md.tmpl" . }}
+
+# Pi Tool Guidance
+
+## Permissions Extension
+
+Auto-loaded; replaces `bash` with mode-aware version; blocks sensitive paths.
+
+**Modes**: **Low** (read-only silent) · **Medium** (reversible silent) · **High** (most silent). Switch: `/perm [low|medium|high]` or `--perm-mode <mode>`.
+
+**Always denied**: `dd of=/dev/`, `mkfs`, `eval`, `curl|sh`/`wget|sh`, `rm -rf /~`/`$HOME`/system dirs, `shutdown`/`reboot`/`halt`/`poweroff`, init runlevel changes.
+
+**Sensitive paths**: `.env*`, `~/.ssh/`, `~/.aws/`, `~/.gnupg/`, `~/.kube/`, `~/.docker/config.json`, `~/.config/gh/hosts.yml`, `*.pem`/`*.key`/`*.crt`.
+
+Edit rules: `dot_pi/agent/extensions/permissions.ts` → `mise run apply` (in ~/.local/share/chezmoi-ai).
+
+## Codebase Index Package
+
+`open-codebase-index` is installed as a native Pi package. Use its tools directly (`index_status`, `index_codebase`, `codebase_context`, `codebase_peek`, `codebase_search`, `implementation_lookup`, `call_graph`, etc.); do not call them through `mcp` or use `codebase_index_*` MCP names.
+
+Prefer `codebase_context` first for repository questions. Run `index_status` when readiness is unknown and `index_codebase` when the index is missing or stale. Slash-command variants: `/index [force|estimate|verbose]` and `/status`. Use `force` only for a full rebuild or provider/model incompatibility.

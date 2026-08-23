@@ -1,0 +1,105 @@
+---
+name: code-refactoring
+description: "Use when: behavior-preserving code refactor"
+category: general_context_skills
+version: 1.1.0
+---
+
+# CODE_REFACTORING
+
+## [OBJECTIVE]
+
+Produce a behavior-preserving structural transformation plan that eliminates specific code smells while maintaining functional parity and test passage.
+
+---
+
+## [TRIGGER_CONDITIONS]
+
+- Identifying code smells (Arrow code, Long Methods, Primitive Obsession, Feature Envy).
+- Pre-feature preparation ("Make the change easy, then make the easy change").
+- Post-implementation cleanup (Red-Green-Refactor).
+- Technical debt reduction or readability improvement.
+
+---
+
+## [INPUTS]
+
+### [REQUIRED]
+- `target_code`: Smallest refactorable unit (function/module/class).
+- `intent`: Desired structural outcome (e.g., Extract Method, Decouple Logic).
+
+### [CONTEXTUAL]
+- `test_state`: Existing coverage and current pass/fail status.
+- `constraints`: Public API stability, performance requirements, architectural invariants.
+
+---
+
+## [EXECUTION_SEQUENCE]
+
+### [STEP_1_BOUNDARY_DEFINITION]
+- Isolate the `target_code` boundary.
+- Map the [BEHAVIOR_SURFACE]: Public signatures, side effects, and invariants.
+
+### [STEP_2_SAFETY_VALIDATION]
+- If no tests: Define a [SAFETY_NET] (minimal verification steps).
+- If tests pass: Proceed to transformation.
+- If tests fail: Resolve bugs before refactoring.
+
+### [STEP_3_SMELL_DIAGNOSIS]
+Identify observable smells:
+- [LONG_METHOD]: `path:LINE`
+- [DEEP_NESTING]: `path:LINE`
+- [PRIMITIVE_OBSESSION]: `path:LINE`
+- [FEATURE_ENVY]: `path:LINE`
+
+### [STEP_4_TECHNIQUE_SELECTION]
+| Smell | Primary Technique |
+| :--- | :--- |
+| Multi-tasking function | Extract Method |
+| Deeply nested logic | Guard Clauses / Early Returns |
+| Branching on type | Replace Conditional with Polymorphism |
+| Parameter bloat (>4) | Introduce Parameter Object |
+| Magic values | Replace Magic Numbers with Constants |
+
+### [STEP_5_INCREMENTAL_PLAN]
+Produce a sequential, testable transformation sequence:
+1. [STEP_ID]: Description of atomic change.
+2. [DIFF_ANCHOR]: Targeted modification area.
+3. [VERIFICATION]: Specific test or check to run.
+
+---
+
+## [OUTPUT_CONTRACT]
+
+```markdown
+# Refactor Plan: [TARGET_COMPONENT]
+
+## [DIAGNOSIS]
+- [SMELL_ID]: [Evidence at path:LINE] -> [Risk: LOW|MED|HIGH]
+
+## [STRATEGY]
+- [PRIMARY_TECHNIQUE]: [Rationale]
+- [INVARIANTS]: [List of behavior/signatures that MUST NOT change]
+
+## [TRANSFORMATION_STEPS]
+1. [STEP_1]: [Action] -> [Verify: Command/Test]
+2. [STEP_2]: [Action] -> [Verify: Command/Test]
+
+## [SAFETY_NET]
+[Minimal verification steps if no tests exist]
+```
+
+---
+
+## [COMMIT]
+
+After all transformation steps are verified, use the commit skill with message format: `refactor(<target>): <description>`
+
+---
+
+## [CONSTRAINTS]
+
+- [SND]: 0% conversational filler. No subjective quality judgements (e.g., "cleaner").
+- [SEMANTIC_ANCHORS]: All steps and smells MUST reference exact `path:LINE`.
+- [DETERMINISM]: Behavior MUST remain identical. Verify against [BEHAVIOR_SURFACE].
+- [LEXICAL_SPECIFICITY]: Use formal refactoring terminology (Fowler/Kerievsky).

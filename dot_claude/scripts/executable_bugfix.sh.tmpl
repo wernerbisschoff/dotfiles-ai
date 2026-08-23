@@ -1,0 +1,307 @@
+#!/usr/bin/env bash
+#
+# executable_bugfix.sh - Orchestrator for the /bugfix workflow
+#
+# This script wraps operational concerns of the bugfix workflow:
+#   - Repository validation
+#   - Issue context and git state gathering
+#   - Recent commit history for regression detection
+#   - Fix validation and committing
+#
+# Usage:
+#   executable_bugfix.sh pre
+#   executable_bugfix.sh post
+#
+# The 'pre' subcommand emits a JSON contract to stdout with git state,
+# branch info, recent commits, and issue context for the AI debug agent.
+# The 'post' subcommand validates the fix and optionally commits it.
+#
+# Exit codes:
+#   0   Success
+#   1   Invalid arguments
+#   2   Pre-flight check failed (not a repo, merge conflict)
+#
+set -euo pipefail
+
+SCRIPT_NAME="$(basename "$0")"
+
+# Shared library: colors, logging, find_repo_root, create_temp_dir, etc.
+# shellcheck disable=SC1054,SC1009,SC1083,SC1073,SC1056,SC1072  # chezmoi template directive, not real bash
+{{ template "scripts/lib/common.sh.tmpl" . }}
+
+#------------------------------------------------------------------------------
+# Pre: Gather issue context, git state, branch info — emit JSON contract
+#------------------------------------------------------------------------------
+cmd_pre() {
+	# Validate repo
+	local repo_root
+	repo_root=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+	if [[ -z "$repo_root" ]]; then
+		echo '{"status":"FAILURE","reason":"Not a git repository"}'
+		exit 2
+	fi
+
+	# Check for merge conflicts
+	if ! git diff --check --cached 2>/dev/null; then
+		echo '{"status":"FAILURE","reason":"Merge conflict detected"}'
+		exit 2
+	fi
+
+	local branch
+	branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+
+	# Check for gh CLI availability
+	local gh_available=false
+	if command -v gh &>/dev/null; then
+		gh_available=true
+	else
+		log_warn "gh CLI not found — operating in degraded mode (no GitHub issue integration)"
+	fi
+
+	# Detect base branch
+	local base_branch="main"
+	for candidate in main master develop; do
+		if git show-ref --verify "refs/heads/$candidate" &>/dev/null; then
+			base_branch="$candidate"
+			break
+		fi
+	done
+
+	# Gather git state using shared helper
+	local git_state
+	git_state=$(gather_git_state) || exit 2
+
+	local staged_files unstaged_files untracked_files
+	local staged_count unstaged_count untracked_count
+	local staged_json unstaged_json untracked_json
+
+	staged_files=$(printf '%s' "$git_state" | jq -r '.staged_files')
+	unstaged_files=$(printf '%s' "$git_state" | jq -r '.unstaged_files')
+	untracked_files=$(printf '%s' "$git_state" | jq -r '.untracked_files')
+	staged_count=$(printf '%s' "$git_state" | jq -r '.staged_count')
+	unstaged_count=$(printf '%s' "$git_state" | jq -r '.unstaged_count')
+	untracked_count=$(printf '%s' "$git_state" | jq -r '.untracked_count')
+	staged_json=$(printf '%s' "$git_state" | jq -c '.staged_json')
+	unstaged_json=$(printf '%s' "$git_state" | jq -c '.unstaged_json')
+	untracked_json=$(printf '%s' "$git_state" | jq -c '.untracked_json')
+
+	local total_changes=$((staged_count + unstaged_count + untracked_count))
+
+	# Check for changes relative to base branch (for regression analysis)
+	local commits_since_base
+	commits_since_base=$(git --no-pager log --oneline --decorate -20 "$base_branch..HEAD" 2>/dev/null || echo "")
+
+	# Create temp dir for artifacts
+	local temp_dir
+	temp_dir=$(create_temp_dir "bugfix-phase") || exit 2
+	local diff_path="$temp_dir/DIFF"
+	local staged_diff_path="$temp_dir/STAGED_DIFF"
+	local unstaged_diff_path="$temp_dir/UNSTAGED_DIFF"
+	local recent_commits_path="$temp_dir/RECENT_COMMITS"
+	local base_diff_path="$temp_dir/BASE_DIFF"
+
+	# Write diffs
+	git diff --cached -- . >"$staged_diff_path" 2>/dev/null || echo "" >"$staged_diff_path"
+	git diff -- . >"$unstaged_diff_path" 2>/dev/null || echo "" >"$unstaged_diff_path"
+	cat "$staged_diff_path" "$unstaged_diff_path" >"$diff_path" 2>/dev/null || echo "" >"$diff_path"
+
+	# Write diff against base branch for full context
+	git diff "$base_branch" HEAD -- . >"$base_diff_path" 2>/dev/null || echo "" >"$base_diff_path"
+
+	local staged_diff_size unstaged_diff_size total_diff_size
+	staged_diff_size=$(wc -l <"$staged_diff_path" | tr -d ' ')
+	unstaged_diff_size=$(wc -l <"$unstaged_diff_path" | tr -d ' ')
+	total_diff_size=$((staged_diff_size + unstaged_diff_size))
+
+	# Write recent commits
+	git --no-pager log --oneline --decorate -10 >"$recent_commits_path" 2>/dev/null || echo "" >"$recent_commits_path"
+
+	# Try to gather GitHub issue context if gh is available
+	local issue_context="{}"
+	if [[ "$gh_available" == "true" ]]; then
+		# Check for issue references in branch name
+		local issue_ref
+		issue_ref=$(echo "$branch" | grep -oE '[0-9]+' | head -1 || echo "")
+		if [[ -n "$issue_ref" ]]; then
+			local issue_json
+			issue_json=$(gh issue view "$issue_ref" --json title,body,state,labels 2>/dev/null || echo "")
+			if [[ -n "$issue_json" ]] && [[ "$issue_json" != "null" ]]; then
+				issue_context=$(echo "$issue_json" | jq -c '{title, body, state, labels: [.labels[].name]}')
+				log_info "GitHub issue #$issue_ref detected from branch name"
+			fi
+		fi
+	fi
+
+	# Check if mise is available
+	local mise_available=false
+	if command -v mise &>/dev/null; then
+		mise_available=true
+	fi
+
+	# Emit contract
+	jq -n \
+		--arg phase "bugfix" \
+		--arg branch "$branch" \
+		--arg base_branch "$base_branch" \
+		--arg repo_root "$repo_root" \
+		--argjson has_changes "$((total_changes > 0))" \
+		--argjson gh_available "$gh_available" \
+		--argjson mise_available "$mise_available" \
+		--argjson staged_files "$staged_json" \
+		--argjson unstaged_files "$unstaged_json" \
+		--argjson untracked_files "$untracked_json" \
+		--argjson staged_count $staged_count \
+		--argjson unstaged_count $unstaged_count \
+		--argjson untracked_count $untracked_count \
+		--argjson total_changes $total_changes \
+		--argjson staged_diff_size $staged_diff_size \
+		--argjson unstaged_diff_size $unstaged_diff_size \
+		--argjson total_diff_size $total_diff_size \
+		--arg diff_path "$diff_path" \
+		--arg staged_diff_path "$staged_diff_path" \
+		--arg unstaged_diff_path "$unstaged_diff_path" \
+		--arg base_diff_path "$base_diff_path" \
+		--arg recent_commits_path "$recent_commits_path" \
+		--argjson issue_context "$issue_context" \
+		--arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+		'{
+            phase: $phase,
+            status: "READY",
+            branch: $branch,
+            base_branch: $base_branch,
+            repo_root: $repo_root,
+            has_changes: ($has_changes == 1),
+            gh_available: $gh_available,
+            mise_available: $mise_available,
+            files: {
+                staged: $staged_files,
+                staged_count: $staged_count,
+                unstaged: $unstaged_files,
+                unstaged_count: $unstaged_count,
+                untracked: $untracked_files,
+                untracked_count: $untracked_count,
+                total_changes: $total_changes
+            },
+            diff_path: $diff_path,
+            staged_diff_path: $staged_diff_path,
+            unstaged_diff_path: $unstaged_diff_path,
+            base_diff_path: $base_diff_path,
+            staged_diff_size: $staged_diff_size,
+            unstaged_diff_size: $unstaged_diff_size,
+            total_diff_size: $total_diff_size,
+            recent_commits_path: $recent_commits_path,
+            issue_context: $issue_context,
+            timestamp: $timestamp
+        }'
+
+	log_ok "Pre-phase complete. Bugfix contract emitted."
+}
+
+#------------------------------------------------------------------------------
+# Post: Validate fix and commit
+#------------------------------------------------------------------------------
+cmd_post() {
+	# Validate repo
+	local repo_root
+	repo_root=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+	if [[ -z "$repo_root" ]]; then
+		log_err "Not a git repository"
+		echo '{"status":"FAILURE","reason":"Not a git repository"}'
+		exit 2
+	fi
+
+	local branch
+	branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+
+	# Determine commit message from environment or generate one
+	local commit_msg="${COMMIT_MSG:-}"
+	local fix_description="${FIX_DESCRIPTION:-}"
+
+	# Check that there are changes to commit
+	local has_changes=false
+	if [[ -n "$(git status --porcelain 2>/dev/null)" ]]; then
+		has_changes=true
+	fi
+
+	local status="SUCCESS"
+
+	if [[ "$has_changes" == "true" ]]; then
+		# Stage all relevant changes (source, test, config)
+		cd "$repo_root"
+		git add -A
+
+		# Build commit message
+		if [[ -z "$commit_msg" ]]; then
+			if [[ -n "$fix_description" ]]; then
+				commit_msg="fix: $fix_description"
+			else
+				commit_msg="fix: bug fix implemented"
+			fi
+		fi
+
+		# Commit
+		if git diff --cached --quiet 2>/dev/null; then
+			log_info "No changes to commit after staging"
+			status="SUCCESS"
+		else
+			if git commit --no-verify -m "$commit_msg" 2>/dev/null; then
+				local commit_sha
+				commit_sha=$(git rev-parse --short HEAD)
+				log_ok "Fix committed: $commit_sha - $commit_msg"
+			else
+				log_warn "Could not auto-commit (staged changes exist)"
+				status="PARTIAL"
+			fi
+		fi
+	else
+		log_info "No changes to commit — fix was likely advisory only"
+		status="SUCCESS"
+	fi
+
+	# Emit status
+	jq -n \
+		--arg status "$status" \
+		--arg commit_msg "${commit_msg:-}" \
+		--arg branch "$branch" \
+		'{
+            status: $status,
+            commit_msg: $commit_msg,
+            branch: $branch
+        }'
+}
+
+#------------------------------------------------------------------------------
+# Dispatch
+#------------------------------------------------------------------------------
+
+if [[ $# -lt 1 ]]; then
+	echo "Usage: $SCRIPT_NAME <pre|post>"
+	echo ""
+	echo "Subcommands:"
+	echo "  pre     - Gather issue context, git state, emit JSON contract to stdout"
+	echo "  post    - Validate fix and commit changes"
+	echo ""
+	echo "Environment variables for post:"
+	echo "  COMMIT_MSG      - Optional: commit message for the fix"
+	echo "  FIX_DESCRIPTION - Optional: description of the fix"
+	exit 1
+fi
+
+SUBCOMMAND="$1"
+shift
+
+case "$SUBCOMMAND" in
+pre) cmd_pre ;;
+post) cmd_post ;;
+-h | --help | help)
+	echo "Usage: $SCRIPT_NAME <pre|post>"
+	echo ""
+	echo "  pre     - Gather issue context, git state, emit JSON contract to stdout"
+	echo "  post    - Validate fix and commit changes"
+	exit 0
+	;;
+*)
+	log_err "Unknown subcommand: $SUBCOMMAND"
+	exit 1
+	;;
+esac

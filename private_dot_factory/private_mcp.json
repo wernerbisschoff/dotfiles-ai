@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "codebase-index": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "--package",
+        "open-codebase-index@latest",
+        "open-codebase-index-mcp"
+      ],
+      "disabled": false
+    }
+  }
+}

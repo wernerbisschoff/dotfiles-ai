@@ -1,0 +1,23 @@
+---
+
+### [CLI_TOOL_PREFERENCES]
+
+Use modern Rust-based replacements over legacy tools when available:
+
+| Legacy | Modern | Why |
+|--------|--------|-----|
+| `grep` | `rg` | Ripgrep - blazing fast, respects .gitignore |
+| `find` | `fd` | Intuitive syntax, `fd pattern` |
+| `du` | `dust` | Visual tree of disk usage |
+| `df` | `duf` | User-friendly disk table with colors |
+| `top`/`htop` | `btm` | Bottom - customizable dashboard |
+| `sed` | `sd` | Modern regex, no escaping hell |
+| `curl` | `xh` | HTTPie-like with JSON formatting |
+| `cat` | `bat` | Syntax highlighting, line numbers |
+| `ls` | `eza` | Modern with icons, git status |
+| `cd` + `ls` | `zoxide` | Smart cd with fuzzy matching |
+| `git diff` | `delta` | Syntax-highlighting, VS Code-like |
+
+For project tasks, prefer `mise run <task>` over `make <target>` when `.mise.toml` exists.
+
+---

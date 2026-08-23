@@ -1,0 +1,300 @@
+#!/usr/bin/env bash
+#
+# executable_walkthrough.sh - Orchestrator for the /walkthrough workflow
+#
+# This script wraps operational concerns of the code walkthrough workflow:
+#   - Repository validation
+#   - Project structure inventory
+#   - Git merge-base and diff analysis
+#   - Walkthrough summary emission
+#
+# Usage:
+#   executable_walkthrough.sh pre
+#   executable_walkthrough.sh post
+#
+# The 'pre' subcommand emits a JSON contract to stdout with project structure,
+# file inventory, and git diff context. The 'post' subcommand validates and
+# persists the walkthrough summary.
+#
+# Exit codes:
+#   0   Success
+#   1   Invalid arguments
+#   2   Pre-flight check failed (not a repo, detached HEAD)
+#
+set -euo pipefail
+
+SCRIPT_NAME="$(basename "$0")"
+
+# Shared library: colors, logging, find_repo_root, create_temp_dir, etc.
+# shellcheck disable=SC1054,SC1009,SC1083,SC1073,SC1056,SC1072  # chezmoi template directive, not real bash
+{{ template "scripts/lib/common.sh.tmpl" . }}
+
+#------------------------------------------------------------------------------
+# Pre: Gather project structure, file inventory, git diff context
+#------------------------------------------------------------------------------
+cmd_pre() {
+	# Validate repo
+	local repo_root
+	repo_root=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+	if [[ -z "$repo_root" ]]; then
+		echo '{"status":"FAILURE","reason":"Not a git repository"}'
+		exit 2
+	fi
+
+	local branch
+	branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+
+	# Detect base branch
+	local base_branch="main"
+	for candidate in main master develop; do
+		if git show-ref --verify "refs/heads/$candidate" &>/dev/null; then
+			base_branch="$candidate"
+			break
+		fi
+	done
+
+	# Compute merge-base for clean diff
+	local merge_base=""
+	merge_base=$(git merge-base "$base_branch" HEAD 2>/dev/null || echo "")
+
+	# Get file inventory from diff against merge-base (or base branch as fallback)
+	local diff_base="${merge_base:-$base_branch}"
+	local changed_files
+	changed_files=$(git diff --name-only "$diff_base" HEAD 2>/dev/null || echo "")
+
+	# Separate source files from test files
+	local source_files="" test_files=""
+	if [[ -n "$changed_files" ]]; then
+		source_files=$(echo "$changed_files" | grep -v -E '(_test_|\.test\.|\.spec\.|_spec_|[/-]test[/-]|[/-]tests[/-]|[/-]spec[/-])' | tr '\n' ' ' | sed 's/ $//' || echo "")
+		test_files=$(echo "$changed_files" | grep -E '(_test_|\.test\.|\.spec\.|_spec_|[/-]test[/-]|[/-]tests[/-]|[/-]spec[/-])' | tr '\n' ' ' | sed 's/ $//' || echo "")
+	else
+		# Fallback: check working tree state
+		changed_files=$(git diff --name-only 2>/dev/null || echo "")
+		source_files="$changed_files"
+	fi
+
+	# Count files
+	local total_file_count=0 source_count=0 test_count=0
+	[[ -n "$changed_files" ]] && total_file_count=$(echo "$changed_files" | wc -w | tr -d ' ')
+	[[ -n "$source_files" ]] && source_count=$(echo "$source_files" | wc -w | tr -d ' ')
+	[[ -n "$test_files" ]] && test_count=$(echo "$test_files" | wc -w | tr -d ' ')
+
+	local has_changes=false
+	if [[ "$total_file_count" -gt 0 ]]; then
+		has_changes=true
+	fi
+
+	# Build file arrays as JSON
+	local changed_json="[]" source_json="[]" test_json="[]"
+	if [[ -n "$changed_files" ]]; then
+		changed_json=$(printf '%s\n' $changed_files | jq -R -s 'split("\n") | map(select(length > 0))')
+	fi
+	if [[ -n "$source_files" ]]; then
+		source_json=$(printf '%s\n' $source_files | jq -R -s 'split("\n") | map(select(length > 0))')
+	fi
+	if [[ -n "$test_files" ]]; then
+		test_json=$(printf '%s\n' $test_files | jq -R -s 'split("\n") | map(select(length > 0))')
+	fi
+
+	# Gather top-level project structure for context
+	local top_level_entries
+	top_level_entries=$(ls -1 "$repo_root" 2>/dev/null | head -30 | tr '\n' ' ' | sed 's/ $//')
+	local top_level_json="[]"
+	if [[ -n "$top_level_entries" ]]; then
+		top_level_json=$(printf '%s\n' $top_level_entries | jq -R -s 'split("\n") | map(select(length > 0))')
+	fi
+
+	# Detect project type by looking for config files
+	local project_type="unknown"
+	if [[ -f "$repo_root/package.json" ]]; then
+		project_type="node"
+	elif [[ -f "$repo_root/mix.exs" ]]; then
+		project_type="elixir"
+	elif [[ -f "$repo_root/pyproject.toml" ]]; then
+		project_type="python"
+	elif [[ -f "$repo_root/Cargo.toml" ]]; then
+		project_type="rust"
+	elif [[ -f "$repo_root/go.mod" ]]; then
+		project_type="go"
+	elif [[ -f "$repo_root/Makefile" ]]; then
+		project_type="make"
+	fi
+
+	# Create temp dir for artifacts
+	local temp_dir
+	temp_dir=$(create_temp_dir "walkthrough-phase") || exit 2
+	local diff_path="$temp_dir/DIFF"
+	local merge_base_path="$temp_dir/MERGE_BASE"
+	local recent_commits_path="$temp_dir/RECENT_COMMITS"
+	local file_tree_path="$temp_dir/FILE_TREE"
+
+	# Write diff
+	git diff "$diff_base" HEAD -- . >"$diff_path" 2>/dev/null || echo "" >"$diff_path"
+	local diff_size
+	diff_size=$(wc -l <"$diff_path" | tr -d ' ')
+
+	# Write merge base info
+	echo "$merge_base" >"$merge_base_path"
+
+	# Write recent commits
+	git --no-pager log --oneline --decorate -10 >"$recent_commits_path" 2>/dev/null || echo "" >"$recent_commits_path"
+
+	# Write file tree summary (depth 2)
+	git ls-tree -d --name-only HEAD 2>/dev/null | head -20 >"$file_tree_path" 2>/dev/null || echo "" >"$file_tree_path"
+
+	# Check for gh CLI availability
+	local gh_available=false
+	if command -v gh &>/dev/null; then
+		gh_available=true
+	else
+		log_warn "gh CLI not found — operating in degraded mode (no PR context)"
+	fi
+
+	# Detect PR number for current branch
+	local pr_number=""
+	if [[ "$gh_available" == "true" ]]; then
+		pr_number=$(gh pr list --head "$branch" --json number --jq '.[0].number // ""' 2>/dev/null || echo "")
+		if [[ -n "$pr_number" ]]; then
+			log_info "Detected PR #$pr_number for branch $branch"
+		fi
+	fi
+
+	# Emit contract
+	jq -n \
+		--arg phase "walkthrough" \
+		--arg branch "$branch" \
+		--arg base_branch "$base_branch" \
+		--arg merge_base "${merge_base:-}" \
+		--arg repo_root "$repo_root" \
+		--argjson has_changes "$has_changes" \
+		--argjson total_file_count $total_file_count \
+		--argjson source_count $source_count \
+		--argjson test_count $test_count \
+		--argjson changed_files "$changed_json" \
+		--argjson source_files "$source_json" \
+		--argjson test_files "$test_json" \
+		--argjson top_level_entries "$top_level_json" \
+		--arg project_type "$project_type" \
+		--argjson diff_size "$diff_size" \
+		--argjson gh_available "$gh_available" \
+		--arg pr_number "${pr_number:-}" \
+		--arg diff_path "$diff_path" \
+		--arg merge_base_path "$merge_base_path" \
+		--arg recent_commits_path "$recent_commits_path" \
+		--arg file_tree_path "$file_tree_path" \
+		--arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+		'{
+            phase: $phase,
+            status: "READY",
+            branch: $branch,
+            base_branch: $base_branch,
+            merge_base: $merge_base,
+            repo_root: $repo_root,
+            has_changes: $has_changes,
+            gh_available: $gh_available,
+            pr_number: $pr_number,
+            project_type: $project_type,
+            files: {
+                total_count: $total_file_count,
+                source_count: $source_count,
+                test_count: $test_count,
+                all: $changed_files,
+                source: $source_files,
+                test: $test_files
+            },
+            diff_path: $diff_path,
+            diff_size: $diff_size,
+            merge_base_path: $merge_base_path,
+            recent_commits_path: $recent_commits_path,
+            file_tree_path: $file_tree_path,
+            top_level_entries: $top_level_entries,
+            timestamp: $timestamp
+        }'
+
+	log_ok "Pre-phase complete. Walkthrough contract emitted."
+}
+
+#------------------------------------------------------------------------------
+# Post: Validate and persist walkthrough summary
+#------------------------------------------------------------------------------
+cmd_post() {
+	local repo_root
+	repo_root=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+	if [[ -z "$repo_root" ]]; then
+		log_err "Not a git repository"
+		echo '{"status":"FAILURE","reason":"Not a git repository"}'
+		exit 2
+	fi
+
+	local branch
+	branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+
+	# Read walkthrough summary from environment or detect
+	local walkthrough_summary="${WALKTHROUGH_SUMMARY:-}"
+	local summary_path="${WALKTHROUGH_OUTPUT:-}"
+
+	if [[ -z "$walkthrough_summary" ]] && [[ -n "$summary_path" ]] && [[ -f "$summary_path" ]]; then
+		walkthrough_summary=$(cat "$summary_path")
+	fi
+
+	local status="SUCCESS"
+
+	if [[ -n "$walkthrough_summary" ]]; then
+		# Persist the summary to repo root
+		local saved_path="$repo_root/walkthrough-summary.md"
+		echo "$walkthrough_summary" >"$saved_path"
+		log_ok "Walkthrough summary saved to $saved_path"
+
+		# Optionally stage the summary
+		cd "$repo_root"
+		git add "walkthrough-summary.md" 2>/dev/null || log_warn "Could not stage walkthrough summary"
+	else
+		log_info "No walkthrough summary provided — walkthrough was likely advisory only"
+		status="SUCCESS"
+	fi
+
+	# Emit status
+	jq -n \
+		--arg status "$status" \
+		--arg branch "$branch" \
+		'{
+            status: $status,
+            branch: $branch
+        }'
+}
+
+#------------------------------------------------------------------------------
+# Dispatch
+#------------------------------------------------------------------------------
+
+if [[ $# -lt 1 ]]; then
+	echo "Usage: $SCRIPT_NAME <pre|post>"
+	echo ""
+	echo "Subcommands:"
+	echo "  pre     - Gather project structure, file inventory, emit JSON contract to stdout"
+	echo "  post    - Validate and persist walkthrough summary"
+	echo ""
+	echo "Environment variables for post:"
+	echo "  WALKTHROUGH_SUMMARY - Optional: walkthrough summary text"
+	echo "  WALKTHROUGH_OUTPUT  - Optional: path to walkthrough summary file"
+	exit 1
+fi
+
+SUBCOMMAND="$1"
+shift
+
+case "$SUBCOMMAND" in
+pre) cmd_pre ;;
+post) cmd_post ;;
+-h | --help | help)
+	echo "Usage: $SCRIPT_NAME <pre|post>"
+	echo ""
+	echo "  pre     - Gather project structure, file inventory, emit JSON contract to stdout"
+	echo "  post    - Validate and persist walkthrough summary"
+	exit 0
+	;;
+*)
+	log_err "Unknown subcommand: $SUBCOMMAND"
+	exit 1
+	;;
+esac
