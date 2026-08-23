@@ -9,7 +9,7 @@ experimental = true
 
 [tasks.apply]
 description = "Apply chezmoi dotfiles (AI scope)"
-run = "chezmoi -S ~/.local/share/chezmoi-ai apply -v"
+run = "chezmoi -S ~/.local/share/chezmoi-ai apply"
 
 [tasks.diff]
 description = "Show chezmoi diff (AI scope)"
@@ -45,10 +45,3 @@ run = "shfmt -w dot_claude/skills/*/executable_*.sh.tmpl run_once_after_*.sh || 
 [tasks.install]
 description = "Install the AI toolchain (mise takes version pins from [tools])"
 run = "mise install"
-
-[tools]
-# AI agent CLIs. `pi` is NOT pinned here — it is registered globally via
-# `mise use -g pi@latest` (bootstrap.sh and run_once_after_install-ai-mise-tools.sh).
-chezmoi = "2.70.3"
-herdr = "latest"
-hunk = "latest"
