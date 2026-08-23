@@ -26,38 +26,6 @@ The output from the most recent review run. Can be provided as a file path, conv
 Lead the user through a sequential, file-by-file understanding of all changes between the current state and the merge-base with main. Use the review report as secondary context to highlight risks. The goal is high-fidelity system understanding, focused quality control, and decision traceability.
 </objective>
 
-<decision_documentation>
-**CRITICAL**: Every significant architectural choice must be documented with full rationale.
-
-### Decision Record Format
-
-For each decision point discovered during walkthrough, document:
-
-```markdown
-### Decision: [Brief Title]
-
-**Context**: Why this decision was needed (problem/constraint)
-
-**Choice Made**: The specific implementation approach selected
-
-**Pros**:
-- [Advantage 1]
-- [Advantage 2]
-
-**Cons**:
-- [Limitation 1]
-- [Limitation 2]
-
-**Alternatives Considered**:
-1. **[Alternative A]**: [Brief description]
-   - Why not chosen: [Reason]
-2. **[Alternative B]**: [Brief description]
-   - Why not chosen: [Reason]
-
-**Risk/Mitigation**: [Any remaining risks and how they're addressed]
-```
-</decision_documentation>
-
 <execution_sequence>
 ### [PHASE_PREFLIGHT]
 Run the pre-script to gather project structure and file inventory:
@@ -487,41 +455,6 @@ Run the post-script to emit walkthrough summary:
 <description>Walk through ALL changed files identified in the git diff, not just those flagged by review.</description>
 </law>
 </law_group>
-
-<cognition>
-<title>COGNITIVE_ACCESSIBILITY</title>
-
-<section id="why-decisions">
-<title>Why Decision Documentation Matters</title>
-<bullet_points>
-- **Prevents "Vibe Coding"**: Documenting decisions forces explicit reasoning about *why* a choice was made, not just *what* was implemented.
-- **Enables Future Refactoring**: When requirements change, the decision log shows what trade-offs were accepted, what alternatives were available, and what constraints drove the original choice.
-- **Supports Team Onboarding**: New team members can understand not just the code, but the reasoning behind architectural choices.
-- **Reduces Bike-Shedding**: Having documented rationale prevents re-litigating decisions that were already made with full context.
-</bullet_points>
-</section>
-
-<section id="adhd-benefits">
-<title>Why This Works for ADHD</title>
-<bullet_points>
-1. **Dopamine Timing**: Each file completion provides a small "victory" maintaining engagement.
-2. **Chunking**: Breaking the "Wall of Diff" into micro-doses reduces executive function load.
-3. **Causal Sequence**: Following data flow (Schema → Service → Controller) builds a coherent mental model of the entire change.
-4. **Active Retrieval**: Dual-purpose questions force memory consolidation of the code logic.
-5. **Contextualized Warnings**: Review findings appear inside the code they affect, not as isolated lists.
-</bullet_points>
-</section>
-
-<section id="flow-state">
-<title>Flow State Maintenance</title>
-<bullet_points>
-- Present exactly one file per response.
-- Pose questions before displaying code.
-- Provide clear "Done" signals after each file.
-- Maintain momentum by awaiting response briefly then proceeding.
-</bullet_points>
-</section>
-</cognition>
 
 <output_contract schema="xml">
 <template>

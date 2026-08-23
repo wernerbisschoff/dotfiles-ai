@@ -31,7 +31,7 @@ All execution targets must map cleanly to these precise semantic aliases:
 * `check-compile` -> Runs dry-run compilation sweeps to capture noise and warnings
 * `dev`           -> Spawns local interactive runtime environments
 * `setup`         -> Bootstraps project dependencies and maps execution structures
-* `uv`            -> Python project manager; ALL Python tooling invocations (ruff, pytest, mypy, etc.) MUST use `uv run <tool>` — never invoke Python tools directly without uv
+* Toolchain delegation    -> The project's package manager drives all tool invocations (`uv run <tool>` for Python, `npm run`/`pnpm` for Node, `mix` for Elixir, `cargo` for Rust, `go` for Go). Derive the run prefix from the contract's `project_type`; never invoke language tools directly outside it.
 * `clean`         -> Flushes transient compilation cache targets and build artifacts
 * `help`          -> Surfaces standardized task indexes
 </internal_task_standards>
@@ -49,11 +49,12 @@ LOCAL_DB_URI=sqlite:///dev.db
 <output_payload>
 ⏮️ Previous: Bootstrap Initiation Requested
 🛠️ Running: /tools:init
-🚀 Next: deviate run check
+🚀 Next: mise run check
 
 ### 1. Target Mutation Ledger
-- Update `mise.toml` to attach `env_file = ".env"` to global runtime configuration block.
-- Map `lint-py` and `format-py` hooks to local tool setups.
+- Update `mise.toml` with the Python toolchain (uv) and the standard task matrix.
+- Add `.env.example`, `.gitignore`, `CLAUDE.md`, and `README.md`.
+- Create the `AGENTS.md` -> `CLAUDE.md` cross-agent symlink.
 
 ### 2. System Execution Contract
 ## ⚙️ Project Execution Contract (MANDATORY)
@@ -70,33 +71,17 @@ Primary Tool Execution API: `mise run <task>`
 
 ### 4. Technical Execution Context
 ## Technical Execution Context
-- Tasks: Environment Preflight, AST Inventory Sync, Data Model Creation, Traceability Validation
+- Tasks: Environment Preflight, Toolchain Sync, Mise Config Generation, Init Artifact Creation
 - Environment Preflight Passed: YES
-- AST Inventory Synchronized: YES / EMPTY_INITIAL_STATE
-- Data Model Artifact Created: YES
-- Traceability Validation Confirmed: YES
-- Total Execution Phases: 8
-- Primary Technical Milestone: Scaffold the deviate CLI package with package-backed prompt initialization.
-- Execution Mode: TDD (Red-Green-Refactor via deviate cycle)
-- Performance Constraints: L_max <= 500ms for init, L_max <= 200ms per agent export
-- Core Strategy Ledger: `specs/001-deviate-cli-bootstrapping/000-project-bootstrap/tasks.md`
-- Data Model Definitions: `specs/001-deviate-cli-bootstrapping/000-project-bootstrap/data-model.md`
-- Diagnostic Explorer Record: `specs/001-deviate-cli-bootstrapping/000-project-bootstrap/research.md`
-- Specification Source: `specs/001-deviate-cli-bootstrapping/000-project-bootstrap/spec.md`
-- Project Constitution: `specs/constitution.md`
-
-### Phase 1: Component Scaffolding
-- Goal: Create the `src/deviate/` Python package structure with all `__init__.py` stubs and the static `src/deviate/prompts/` resource vault directory.
-- Execution Mode: TDD
-- Primary Workstation: `src/deviate/`
-- Impacted File Nodes:
-  - `src/deviate/__init__.py` — Package initialization marker
-  - `src/deviate/prompts/explore.md` — Base template for /explore directive
-  - `src/deviate/prompts/prd.md` — Base template for /prd directive
-  - `src/deviate/main.py` — Runtime bootstrap entry point exposing the Typer app
-  - `src/deviate/cli/__init__.py` — CLI command tree root (Typer instance)
-  - `src/deviate/state/session.py` — Session state entity with Pydantic validation
-- Verification Command: `uv run pytest tests/test_cli/test_init.py::test_init_scaffolds_src_package -v`
+- Tooling Detected: mise, uv, ruff, jq
+- Mise Config Generated: YES (Python profile)
+- Init Artifacts Created: YES
+- Cross-Agent Symlink: AGENTS.md -> CLAUDE.md
+- Total Execution Phases: 4
+- Primary Technical Milestone: Configure a uv-based `mise.toml` and seed standard init artifacts.
+- Execution Mode: TDD (Red-Green-Refactor)
+- Performance Constraints: L_max <= 500ms
+- Verification Command: `mise run check`
 </output_payload>
 </example>
 </few_shot_examples>
@@ -127,31 +112,19 @@ Primary Tool Execution API: `mise run <task>`
 ## Technical Execution Context
 - Tasks: <comma-separated task labels, no trailing comma>
 - Environment Preflight Passed: <YES|NO>
-- AST Inventory Synchronized: <YES|NO | YES / EMPTY_INITIAL_STATE>
-- Data Model Artifact Created: <YES|NO>
-- Traceability Validation Confirmed: <YES|NO>
+- Tooling Detected: <comma-separated tool matrix>
+- Mise Config Generated: <YES|NO | NO_PROFILE>
+- Init Artifacts Created: <YES|NO>
+- Cross-Agent Symlink: <AGENTS.md -> CLAUDE.md | NONE>
 - Total Execution Phases: <integer>
 - Primary Technical Milestone: <one-line summary>
 - Execution Mode: <TDD|Integration|...>
 - Performance Constraints: <short scalar>
-- Core Strategy Ledger: `<path>`
-- Data Model Definitions: `<path>`
-- Diagnostic Explorer Record: `<path>`
-- Specification Source: `<path>`
-- Project Constitution: `<path>`
-
-### Phase N: <Phase Title>
-- Goal: <one-line summary, no trailing comma>
-- Execution Mode: <TDD|Integration>
-- Primary Workstation: `<path>`
-- Impacted File Nodes:
-  - `<path>` — <description, no trailing comma>
-  - `<path>` — <description>
 - Verification Command: `<cmd>`
 
 **STRICT FORMATTING RULES FOR THIS SECTION:**
 - Each field is a single bullet on its own line.
-- Sub-lists (e.g., `Impacted File Nodes`) use nested `- ` indentation.
+- Sub-lists (e.g., `Target Mutation Ledger`) use nested `- ` indentation.
 - Reflow any comma-joined input into nested bullets.
 - Never emit `**Label**:,` with a trailing comma.
 - Never inline multiple file paths on one line.
@@ -165,12 +138,14 @@ Run the pre-script to detect project type and gather init state:
 ```
 
 1. First, read and consider the contents of the `<user_input>` container before continuing with execution.
-2. Parse the dynamic system values inside the `<repository_context_vault>` block. If variable attributes are empty or missing, route behavior to generic polyglot fallback profiles.
-3. Compare the verified context against the standardized targets in `<internal_task_standards>`.
-4. **Python tooling constraint**: For Python projects, all tool invocations (ruff, pytest, mypy, etc.) MUST use `uv run <tool>`. Mise tasks for Python MUST use `uv` (e.g., `uv run ruff check`, `uv run pytest`). Never generate bare `ruff check`, `pytest`, or `pip install` commands.
-5. Formulate structural changes, executing the output format precisely as laid out in `<output_format_schemas>`. Ensure zero raw XML tags leak into the generated markdown response body.
-6. If the user input describes a multi-phase implementation plan, reflow its inline lists into the Technical Execution Context schema with one field per line and nested bullets for Impacted File Nodes. Reflow is mandatory; do not preserve comma-joined inline form.
-7. **Each generated `mise.toml` includes a `hooks` task** that installs both pre-commit and pre-push git hooks via `mise generate git-pre-commit --write && mise generate git-pre-commit --hook pre-push --write`. The `setup` task depends on `hooks`, so `mise run setup` installs deps **and** both hooks. The `pre-commit` task runs format-check + lint; the `pre-push` task runs tests.
+2. Parse the dynamic system values from the pre-script's JSON contract. If attributes are empty or the project type is `unknown`, route behavior to generic polyglot fallback profiles and do not fabricate a `mise.toml`.
+3. Derive every language-specific choice — the `mise.toml` toolchain profile, dependency/setup commands, and the `dev` command — from the contract's `project_type`. The task alias matrix in `<internal_task_standards>` is identical for all languages; only the underlying commands differ. Polylingual repositories apply the suffix mandate per sub-project.
+4. Compare the verified context against the standardized targets in `<internal_task_standards>`.
+5. **Python tooling constraint**: For Python projects, all tool invocations (ruff, pytest, mypy, etc.) MUST use `uv run <tool>`. Mise tasks for Python MUST use `uv` (e.g., `uv run ruff check`, `uv run pytest`). Never generate bare `ruff check`, `pytest`, or `pip install` commands.
+6. Formulate structural changes, executing the output format precisely as laid out in `<output_format_schemas>`. Ensure zero raw XML tags leak into the generated markdown response body.
+7. If the user input describes a multi-phase implementation plan, reflow its inline lists into the Technical Execution Context schema with one field per line.
+8. **Each generated `mise.toml` includes a `hooks` task** that installs both pre-commit and pre-push git hooks via `mise generate git-pre-commit --write && mise generate git-pre-commit --hook pre-push --write`. The `setup` task depends on `hooks`, so `mise run setup` installs deps **and** both hooks. The `pre-commit` task runs format-check + lint; the `pre-push` task runs tests.
+9. Confirm standard init artifacts exist: `mise.toml`, `.env.example`, `.gitignore`, `CLAUDE.md`, `README.md`.
 
 ### Phase 2: Postflight
 Run the post-script to confirm init artifacts. The post-script handles ALL operational concerns: cross-agent symlink enforcement (`AGENTS.md` -> `CLAUDE.md`), file staging, and commit preparation.

@@ -60,7 +60,7 @@ Run the pre-script to gather git state and obtain the contract:
 The contract on stdout contains:
 - `branch`, `repo_root`, `has_changes`, `gh_available`
 - `files.staged`, `files.unstaged`, `files.untracked` (arrays with counts)
-- `files.filtered` (array of files excluding node_modules, dist, build, generated/binary — the authoritative list for review)
+- `files.filtered` (array of files excluding generated/vendor dirs such as `node_modules`, `dist`, `build`, `.venv`, `target` — the authoritative list for review)
 - `files.filtered_count`, `files.wt_changes` (working tree changes: staged + unstaged + untracked)
 - `files.review_strategy` ("full" | "diff_first" | "targeted" — hints which review mode to use)
 - `files.categories` (counts by directory: core, tests, specs, config, prompts, other)
@@ -104,7 +104,7 @@ Use `files.categories` to decide what to deep-read vs peek:
 - **Core** (`src/`): Read in full if high churn. Use `codebase_peek` for simple additions.
 - **Tests** (`tests/`): Read in full for RED phase tests. Skim for GREEN/REFACTOR tests.
 - **Governance** (`specs/`, `CLAUDE.md`): Read in full.
-- **Config** (`.gitignore`, `pyproject.toml`): Read only if changes are non-trivial.
+- **Config** (`.gitignore`, language config files such as `pyproject.toml` / `package.json`): Read only if changes are non-trivial.
 - **Prompts** (`prompts/`): Skim — check template correctness, not logic.
 
 ### Step 4 — Use codebase_peek over full reads
@@ -309,7 +309,7 @@ Add this block at the end of the report so a cheaper builder-model can apply fix
 Each entry is an independent fix. Apply in priority order.
 
 ### FIX-001: [short title]
-- **File**: `path/to/file.py`
+- **File**: `path/to/file.ext`
 - **Line**: 42
 - **Severity**: High | Confidence: High
 - **Change**: [exact description of what to change]

@@ -200,31 +200,12 @@ Proceed with merge?
 Execute only after confirmation unless acceptance rule triggered.
 </step>
 
-<step id="parse_issue_from_branch">
-Parse the issue ID from the feature branch name:
-- Branch pattern: `feat/{FEATURE_SLUG}/{ISSUE_SLUG}`
-- Example: `feat/001-deviate-cli-bootstrapping/000-project-bootstrap` → `ISS-001`
-- Query the ledger (inline jq): `jq -R 'fromjson' specs/issues.jsonl 2>/dev/null | jq -s '.[] | select(.source_file // "" | contains("{ISSUE_SLUG}")) | .issue_id' | tail -1`
-- Store as `{ISSUE_ID}`
-</step>
-
-<step id="verify_issue_status">
-Before proceeding, verify the issue is in a valid state:
-- Query (inline jq): `jq -R 'fromjson' specs/issues.jsonl 2>/dev/null | jq -s --arg id "{ISSUE_ID}" '[group_by(.issue_id) | map(last) | .[] | select(.issue_id == $id)] | .[0] // empty'`
-- If issue not found in ledger → emit `Failure_State: Issue_Not_Found_In_Ledger`
-- If issue status is COMPLETED → emit `Failure_State: Issue_Already_Completed` and STOP
-- If issue status is BACKLOG or CLAIMED → proceed (valid for merge)
-</step>
 
 <step id="execution">
 Perform the squash merge:
 
-**1. Update issue status to COMPLETED** (before merge to keep ledger in sync with commit):
-```bash
-jq -c -n --arg issue_id "{ISSUE_ID}" --arg status "COMPLETED" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '{issue_id:$issue_id,status:$status,timestamp:$ts}' >> specs/issues.jsonl
-```
 
-**2a. Single-commit strategy** (use `git merge --squash`):
+**1. Single-commit strategy** (use `git merge --squash`):
 ```bash
 git checkout main
 git merge --squash {FEATURE_BRANCH}
@@ -236,7 +217,7 @@ EOF
 )"
 ```
 
-**2b. Multi-commit strategy** (cherry-pick grouped commits via temp branch):
+**2. Multi-commit strategy** (cherry-pick grouped commits via temp branch):
 ```bash
 git checkout main
 git checkout -b merge-temp-{FEATURE_BRANCH}
@@ -293,8 +274,6 @@ Then display command banner:
 | Merge conflict | `Failure_State: Merge_Conflict_Detected` |
 | On main, no branch specified | `Failure_State: No_Feature_Branch_Specified` |
 | Dirty working tree | `Failure_State: Working_Tree_Not_Clean` |
-| Issue not found in ledger | `Failure_State: Issue_Not_Found_In_Ledger` |
-| Issue already COMPLETED | `Failure_State: Issue_Already_Completed` |
 </edge_cases>
 
 <goal_reminder>

@@ -22,8 +22,6 @@ node_modules/
 /.pi/message-history.json
 
 # Generated commands/prompts (from symlinked templates)
-*/commands/deviate-*.md
-*/prompts/deviate-*.md
 */commands/tome-*.md
 */prompts/tome-*.md
 
