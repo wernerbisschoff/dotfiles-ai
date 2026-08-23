@@ -50,6 +50,5 @@ run = "mise install"
 # AI agent CLIs. Declared here (project) and installed globally by
 # run_once_after_install-ai-mise-tools.sh (shims: pi, herdr, hunk).
 chezmoi = "2.70.3"
-pi = "latest"
 herdr = "latest"
 hunk = "latest"

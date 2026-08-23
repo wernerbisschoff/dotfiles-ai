@@ -65,4 +65,4 @@ with an [emoji prefix](https://gitmoji.dev/) for visual scannability.
 
 ## Project layout
 
-See [`CLAUDE.md`](./CLAUDE.md) for source → destination mapping and template conventions.
+See [`README.md`](./README.md) for scope and the `mise run` apply workflow.
