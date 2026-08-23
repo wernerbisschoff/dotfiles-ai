@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
-# Bootstrap script for the dotfiles-ai chezmoi repository (AI agents, skills,
-# prompts, extensions, themes). Assumes mise + chezmoi are already installed —
-# run the main dotfiles bootstrap first (§6 bootstrap ordering). Idempotent.
+# Standalone bootstrap for the dotfiles-ai chezmoi repository (AI agents,
+# skills, prompts, extensions, themes). Installs mise + chezmoi if missing,
+# arranges this repo at ~/.local/share/chezmoi-ai, and applies it. Idempotent.
+#
+# Usage (no manual clone — the script clones this repo itself):
+#   bash <(curl -fsSL https://raw.githubusercontent.com/wernerbisschoff/dotfiles-ai/main/bootstrap.sh)
+
 set -euo pipefail
 
-# Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -13,20 +16,34 @@ NC='\033[0m'
 
 log_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
 log_success() { echo -e "${GREEN}[OK]${NC} $1"; }
+log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 has() { command -v "$1" &>/dev/null; }
 
-has mise || { echo "mise missing — run the main dotfiles bootstrap first"; exit 1; }
-has chezmoi || { echo "chezmoi missing — run the main dotfiles bootstrap first"; exit 1; }
-
+# mise (installs chezmoi; also provides the AI toolchain via .mise.toml)
+if ! has mise; then
+	log_info "Installing mise..."
+	curl https://mise.jdx.dev/install.sh | sh
+fi
 export PATH="$HOME/.local/bin:$PATH"
-eval "$(mise activate bash)"
+if has mise; then
+	eval "$(mise activate bash)"
+fi
 
-# AI toolchain (pi, herdr, hunk) global registration happens inside chezmoi via
-# run_once_after_install-ai-mise-tools.sh — do not duplicate it here.
+# chezmoi (required for apply)
+if ! has chezmoi; then
+	log_info "Installing chezmoi via mise..."
+	mise install chezmoi@latest
+fi
 
+# Clone this repo to the expected source dir if not present.
+AI_SRC="$HOME/.local/share/chezmoi-ai"
+if [[ ! -d "$AI_SRC/.git" ]]; then
+	log_info "Cloning wernerbisschoff/dotfiles-ai..."
+	git clone https://github.com/wernerbisschoff/dotfiles-ai.git "$AI_SRC"
+fi
 
 # Apply the AI repo (renders ~/.claude, ~/.gemini, ~/.pi, ~/.factory, ...).
 log_info "Applying chezmoi from wernerbisschoff/dotfiles-ai..."
-chezmoi -S "$HOME/.local/share/chezmoi-ai" apply
+chezmoi -S "$AI_SRC" apply
 
 log_success "dotfiles-ai setup complete — restart your shell or run: exec zsh"

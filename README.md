@@ -34,16 +34,15 @@ Tasks: `mise run diff|status|edit|verify|lint|format|fix|install`.
 
 ## Bootstrap
 
-Requires mise + chezmoi already installed (run the main dotfiles bootstrap
-first). Then:
+One line — `bootstrap.sh` is standalone and installs mise + chezmoi itself:
 
 ```bash
-git clone git@github.com:wernerbisschoff/dotfiles-ai.git ~/.local/share/chezmoi-ai
-cd ~/.local/share/chezmoi-ai && ./bootstrap.sh
+bash <(curl -fsSL https://raw.githubusercontent.com/wernerbisschoff/dotfiles-ai/main/bootstrap.sh)
 ```
 
-`bootstrap.sh` is idempotent and safe to run before the main repo — it only
-warns and exits if mise/chezmoi are missing.
+`bootstrap.sh` is idempotent. It arranges this repo at
+`~/.local/share/chezmoi-ai` and applies it; run from any directory, no manual
+clone is needed. May run independently of the main `dotfiles` repo.
 
 ## Toolchain
 
