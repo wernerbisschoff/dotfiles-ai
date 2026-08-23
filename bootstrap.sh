@@ -21,8 +21,11 @@ has chezmoi || { echo "chezmoi missing — run the main dotfiles bootstrap first
 export PATH="$HOME/.local/bin:$PATH"
 eval "$(mise activate bash)"
 
-# Install the AI toolchain (pi, herdr, hunk) per [tools] in .mise.toml.
-log_info "Installing AI toolchain via mise..."
+# Register the AI toolchain (pi, herdr, hunk) as GLOBAL mise tools, then
+# install. `pi` is not pinned in [tools] — global registration is the sole
+# source of truth for it, so shims stay available machine-wide.
+log_info "Installing AI toolchain globally via mise..."
+mise use -g pi@latest herdr@latest hunk@latest
 mise install
 
 # Apply the AI repo (renders ~/.claude, ~/.gemini, ~/.pi, ~/.factory, ...).

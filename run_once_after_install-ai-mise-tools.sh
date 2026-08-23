@@ -2,9 +2,9 @@
 # Register the AI toolchain (pi, herdr, hunk) as GLOBAL mise tools and install
 # them. Runs once per content hash (run_once_after_).
 #
-# Why: ~/.config/mise/config.toml is owned by the MAIN dotfiles repo and no
-# longer declares AI tools. This script re-asserts them globally so the shims
-# (pi, herdr, hunk) stay available machine-wide after a fresh bootstrap.
+# Why: `pi` is not pinned in [tools] (this repo). ~/.config/mise/config.toml
+# is owned by the MAIN dotfiles repo and no longer declares AI tools. This
+# script re-asserts pi/herdr/hunk globally so their shims stay available
 set -euo pipefail
 
 RED='\033[0;31m'

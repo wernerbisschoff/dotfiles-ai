@@ -47,8 +47,8 @@ description = "Install the AI toolchain (mise takes version pins from [tools])"
 run = "mise install"
 
 [tools]
-# AI agent CLIs. Declared here (project) and installed globally by
-# run_once_after_install-ai-mise-tools.sh (shims: pi, herdr, hunk).
+# AI agent CLIs. `pi` is NOT pinned here — it is registered globally via
+# `mise use -g pi@latest` (bootstrap.sh and run_once_after_install-ai-mise-tools.sh).
 chezmoi = "2.70.3"
 herdr = "latest"
 hunk = "latest"
