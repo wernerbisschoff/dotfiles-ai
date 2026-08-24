@@ -3,8 +3,9 @@
 # skills, prompts, extensions, themes). Installs mise + chezmoi if missing,
 # arranges this repo at ~/.local/share/chezmoi-ai, and applies it. Idempotent.
 #
-# Usage (no manual clone — the script clones this repo itself):
-#   bash <(curl -fsSL https://raw.githubusercontent.com/wernerbisschoff/dotfiles-ai/main/bootstrap.sh)
+# Usage (private repo — clone once over SSH, then run this file locally):
+#   git clone git@github.com:wernerbisschoff/dotfiles-ai.git ~/.local/share/chezmoi-ai && ~/.local/share/chezmoi-ai/bootstrap.sh
+# If this directory already exists, just run ./bootstrap.sh (no second clone).
 
 set -euo pipefail
 

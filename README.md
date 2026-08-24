@@ -34,15 +34,19 @@ Tasks: `mise run diff|status|edit|verify|lint|format|fix|install`.
 
 ## Bootstrap
 
-One line — `bootstrap.sh` is standalone and installs mise + chezmoi itself:
+This repo is private, so `raw.githubusercontent.com` 404s and a
+`curl | bash` of `bootstrap.sh` cannot work.
+
+One line — one clone, then local `bootstrap.sh` (installs mise + chezmoi,
+skips a second clone, applies). Needs SSH access to GitHub:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/wernerbisschoff/dotfiles-ai/main/bootstrap.sh)
+git clone git@github.com:wernerbisschoff/dotfiles-ai.git ~/.local/share/chezmoi-ai && ~/.local/share/chezmoi-ai/bootstrap.sh
 ```
 
-`bootstrap.sh` is idempotent. It arranges this repo at
-`~/.local/share/chezmoi-ai` and applies it; run from any directory, no manual
-clone is needed. May run independently of the main `dotfiles` repo.
+`bootstrap.sh` is idempotent. If `~/.local/share/chezmoi-ai` already exists,
+run that script only. Do not use `chezmoi init` after this clone — that would
+clone again. May run independently of the main `dotfiles` repo.
 
 ## Toolchain
 
