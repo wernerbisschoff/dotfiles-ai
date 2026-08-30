@@ -3,9 +3,9 @@
     "enabled": true,
     "reserveTokens": 10000
   },
-  "theme": "dark",
+  "theme": "light",
   "quietStartup": true,
-  "lastChangelogVersion": "0.84.2",
+  "lastChangelogVersion": "0.84.4",
   "packages": [
     "npm:pi-mcp-adapter",
     "npm:pi-web-access",
@@ -13,9 +13,12 @@
     "npm:pi-lmstudio",
     "npm:open-codebase-index",
     "npm:@vigolium/piolium",
-    "npm:pi-btw"
+    "npm:pi-btw",
+    "npm:pi-commandcode-provider"
   ],
   "treeFilterMode": "user-only",
   "hideThinkingBlock": true,
-  "defaultThinkingLevel": "off"
+  "defaultThinkingLevel": "low",
+  "defaultProvider": "commandcode",
+  "defaultModel": "z-ai/glm-5.3-flash"
 }

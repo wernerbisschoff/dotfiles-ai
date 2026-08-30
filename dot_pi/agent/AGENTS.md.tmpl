@@ -12,7 +12,13 @@ Auto-loaded; replaces `bash` with mode-aware version; blocks sensitive paths.
 
 **Sensitive paths**: `.env*`, `~/.ssh/`, `~/.aws/`, `~/.gnupg/`, `~/.kube/`, `~/.docker/config.json`, `~/.config/gh/hosts.yml`, `*.pem`/`*.key`/`*.crt`.
 
-Edit rules: `dot_pi/agent/extensions/permissions.ts` → `mise run apply` (in ~/.local/share/chezmoi-ai).
+Edit rules: see "AI Dotfiles Source of Truth" below.
+
+# AI Dotfiles Source of Truth
+
+All AI-agent config lives in the `~/.local/share/chezmoi-ai` chezmoi repo — Pi extensions (`dot_pi/agent/extensions/`), permissions, themes, and related templates. Edit files there, never the deployed copies under `~/.pi/` or `~/.config/`.
+
+After edits, apply with `cd ~/.local/share/chezmoi-ai && mise run apply`, then commit in that repo. The live files are generated output; direct edits to them are lost on the next apply.
 
 ## Codebase Index Package
 

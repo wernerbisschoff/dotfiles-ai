@@ -1,10 +1,12 @@
 /**
- * local-env — project-local .env + $PI_DEFAULT_MODEL.
+ * local-env — project-local .env loading.
  *
- * Loads the nearest `.env` before Pi initializes providers. API keys and
- * PI_DEFAULT_MODEL then work in interactive, print, MCP, and RPC modes.
- * PI_MODEL is reserved for Pi session metadata. Use PI_DEFAULT_MODEL to
- * select the startup model without conflicting with child-process metadata.
+ * Loads the nearest `.env` before Pi initializes providers. API keys
+ * work in interactive, print, MCP, and RPC modes.
+ *
+ * Model selection is Pi-native: `defaultProvider`/`defaultModel` in
+ * settings.json. The current active model is exposed to child processes
+ * as $PI_MODEL session metadata — extensions must not set it.
  *
  * The droid wrapper still uses `_load_ai_env` (droid has no extension
  * mechanism). The `claude-*` wrappers rely on the file-level
@@ -16,20 +18,10 @@
  *   code first, then `await factory(api)`. Anything done at module scope
  *   lands in process.env before the agent binds, so `ctx.env(name)` inside
  *   `provider-composer.js` finds the new values via `process.env[name]`.
- *
- * Why `session_start` for setModel:
- *   `setModel()` calls `_modelRuntime.checkAuth()` which requires the API
- *   key to already be in process.env. Module-level env injection handles
- *   that, but we still need `ctx.modelRegistry` to be bound, which only
- *   happens after bindCore(). `session_start` is the earliest event with
- *   a fully-bound ctx.
  */
 
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, isAbsolute, join } from "node:path";
-
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-
 // ─── .env parsing ───────────────────────────────────────────────────────────
 
 /**
@@ -141,65 +133,9 @@ function mergeEnv(parsed: Record<string, string>, source: string): void {
 	}
 })();
 
-// ─── PI_DEFAULT_MODEL resolution ─────────────────────────────────────────────
-
-/**
- * Resolve `$PI_DEFAULT_MODEL` to a model in the registry. Bare IDs that match
- * multiple providers are rejected. This matches Pi's CLI ambiguity policy.
- */
-function resolveDefaultModel(registry: {
-	getAll(): { provider: string; id: string }[];
-	find(provider: string, modelId: string): unknown;
-}): { provider: string; id: string } | undefined {
-	const pattern = process.env["PI_DEFAULT_MODEL"]?.trim();
-	if (!pattern) return undefined;
-
-	const slash = pattern.indexOf("/");
-	if (slash > 0 && slash < pattern.length - 1) {
-		const provider = pattern.slice(0, slash);
-		const modelId = pattern.slice(slash + 1);
-		const found = registry.find(provider, modelId) as
-			| { provider: string; id: string }
-			| undefined;
-		return found;
-	}
-
-	// Bare id — disambiguate across providers.
-	const matches = registry.getAll().filter((m) => m.id === pattern);
-	if (matches.length === 1) return matches[0];
-	return undefined;
-}
-
 // ─── Extension factory ──────────────────────────────────────────────────────
+//
+// The loader rejects modules without a default factory, so export a no-op.
+// All real work (env loading) happens at import time above.
+export default function (): void {}
 
-export default function (pi: ExtensionAPI): void {
-	pi.on("session_start", (_event, ctx) => {
-		// Respect an explicit choice (CLI --model, settings.json, model picker).
-		const current = ctx.model;
-		const desired = resolveDefaultModel(ctx.modelRegistry);
-		if (!desired) return;
-		if (current && current.provider === desired.provider && current.id === desired.id) {
-			return;
-		}
-
-		const target = ctx.modelRegistry.find(desired.provider, desired.id) as
-			| Parameters<typeof pi.setModel>[0]
-			| undefined;
-		if (!target) {
-			console.warn(
-				`[local-env] PI_DEFAULT_MODEL=${process.env["PI_DEFAULT_MODEL"]} did not match any configured model.`,
-			);
-			return;
-		}
-
-		// setModel() rejects when no API key is configured. Module-level
-		// env injection should have placed the key in process.env already,
-		// so a rejection here means PI_DEFAULT_MODEL selects a provider with no
-		// key in either ~/.env or the project .env.
-		// Surface a clean warning instead of an unhandled rejection.
-		void pi.setModel(target).catch((err: unknown) => {
-			const message = err instanceof Error ? err.message : String(err);
-			console.warn(`[local-env] Could not apply PI_DEFAULT_MODEL: ${message}`);
-		});
-	});
-}

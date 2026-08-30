@@ -5,8 +5,8 @@
  * does not run the interactive mise hook. Resolve mise for each Bash call so
  * tools such as DeviaTDD receive the target worktree environment.
  *
- * PI_MODEL remains Pi session metadata. Project PI_MODEL is exposed as
- * PI_DEFAULT_MODEL for compatibility while projects migrate to that name.
+ * PI_MODEL holds the current active model (Pi session metadata). It is
+ * passed through to Bash child processes so tools can read it.
  */
 
 import { spawnSync } from "node:child_process";
@@ -55,7 +55,6 @@ export default function (pi: ExtensionAPI): void {
 			const sessionEnv = Object.fromEntries(
 				PI_SESSION_KEYS.flatMap((key) => (env[key] === undefined ? [] : [[key, env[key]]])),
 			);
-			const defaultModel = miseEnv.PI_DEFAULT_MODEL ?? miseEnv.PI_MODEL;
 
 			return {
 				command,
@@ -63,7 +62,6 @@ export default function (pi: ExtensionAPI): void {
 				env: {
 					...env,
 					...miseEnv,
-					...(defaultModel ? { PI_DEFAULT_MODEL: defaultModel } : {}),
 					...sessionEnv,
 				},
 			};

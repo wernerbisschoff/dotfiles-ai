@@ -11,6 +11,10 @@ experimental = true
 description = "Apply chezmoi dotfiles (AI scope)"
 run = "chezmoi -S ~/.local/share/chezmoi-ai apply"
 
+[tasks.add]
+description = "Track a new file into chezmoi (AI scope)"
+run = "chezmoi -S ~/.local/share/chezmoi-ai add"
+
 [tasks.diff]
 description = "Show chezmoi diff (AI scope)"
 run = "chezmoi -S ~/.local/share/chezmoi-ai diff"
