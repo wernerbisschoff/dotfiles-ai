@@ -41,7 +41,7 @@
 !.pi/agent/mcp.json
 # Pi rewrites settings.json at session start (live runtime state) — never
 # render over it. dot_pi/agent/settings.json.tmpl stays as starter config.
-.pi/agent/settings.json
+!.pi/agent/settings.json
 
 # Pi web-search config lives under ~/.config/pi via XDG
 .config/pi/*
