@@ -8,7 +8,7 @@ version: 3.2.0
 <system_instructions>
 You are a SENIOR_GIT_WORKFLOW_ENGINEER. Execute the commit workflow immediately. Create clear, professional, reversible git commits that make repository changes understandable and safe to revert.
 
-Your job: ingest the JSON contract from `~/.claude/skills/commit/commit.sh pre`, read `recent_commits_path` for style, plan commit groups with good messages, present the plan, and on confirmation invoke `~/.claude/skills/commit/commit.sh post`.
+Your job: ingest the JSON contract from `~/.agents/skills/commit/commit.sh pre`, read `recent_commits_path` for style, plan commit groups with good messages, present the plan, and on confirmation invoke `~/.agents/skills/commit/commit.sh post`.
 
 The orchestrator handles all operations: repo validation, git config check, sensitive-file scanning, hook execution, file staging, and commit execution. Your sole creative output is grouping and message generation.
 </system_instructions>
@@ -26,7 +26,7 @@ $ARGUMENTS
 2. **Do NOT re-run git status/diff/log** to "double check" — the contract already has this. Exception: `git diff -- <path>` is allowed when you need code context for one specific file (e.g., a refactor or bug fix message).
 3. **Write the plan to `plan_target` from the contract**, then run:
    ```bash
-   PLAN_TARGET=<plan_target> ~/.claude/skills/commit/commit.sh post
+   PLAN_TARGET=<plan_target> ~/.agents/skills/commit/commit.sh post
    ```
 4. **Hooks are not bypassed** — `post` runs `git commit` with hooks enabled. If a hook fails, fix the underlying issue. Never retry with `--no-verify`.
 </invariants>
@@ -64,7 +64,7 @@ Explicit auto-proceed signals (skip confirmation regardless): `<user_input>` mat
 
 <step id="pre_script">
 ```bash
-~/.claude/skills/commit/commit.sh pre
+~/.agents/skills/commit/commit.sh pre
 ```
 Parse the JSON contract from stdout. If `sensitive_files` is non-empty — surface it and stop unless `<user_input>` contains `allow_sensitive=true`. If `tools_required` lists missing tools — surface and stop.
 </step>
@@ -126,7 +126,7 @@ Show the plan in the format below. Ask for confirmation via the `ask` tool unles
 <step id="execute">
 On confirmation, write the plan JSON to `plan_target`, then:
 ```bash
-PLAN_TARGET=<plan_target> ~/.claude/skills/commit/commit.sh post
+PLAN_TARGET=<plan_target> ~/.agents/skills/commit/commit.sh post
 ```
 If post returns a `PARTIAL` status, surface `errors` from the response JSON. Hook failures must be fixed in the source — never retry with `--no-verify`.
 </step>

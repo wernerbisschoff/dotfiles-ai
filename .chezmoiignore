@@ -83,3 +83,8 @@
 memory.md
 *.bak
 .taskmaster/
+
+# === Shared agent skills ===
+!.agents/
+!.agents/skills/
+!.agents/skills/**
