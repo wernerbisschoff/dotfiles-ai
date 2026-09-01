@@ -14,11 +14,12 @@
     "npm:open-codebase-index",
     "npm:@vigolium/piolium",
     "npm:pi-btw",
-    "npm:pi-commandcode-provider"
+    "npm:pi-commandcode-provider",
+    "npm:pi-crof"
   ],
   "treeFilterMode": "user-only",
   "hideThinkingBlock": true,
   "defaultThinkingLevel": "low",
   "defaultProvider": "commandcode",
-  "defaultModel": "z-ai/glm-5.3-flash"
+  "defaultModel": "deepseek/deepseek-v4-flash"
 }
