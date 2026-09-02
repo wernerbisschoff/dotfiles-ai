@@ -28,3 +28,4 @@ node_modules/
 # Local runtime state
 *.bak
 .zvec-grep/
+.codebase-index/
