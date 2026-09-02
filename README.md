@@ -53,7 +53,7 @@ clone again. May run independently of the main `dotfiles` repo.
 The AI CLIs (`pi`, `herdr`, `hunk`) are declared in `.mise.toml`. On a fresh
 machine, `run_once_after_install-ai-mise-tools.sh` registers them as global
 `mise` tools (`mise use -g`) so their shims are machine-wide. npm globals
-(`open-codebase-index`, `@wernerbisschoff/libref`) install via
+(`@zvec/zvec-grep`, `@wernerbisschoff/libref`) install via
 `run_once_after_npm-globals.sh`, and `run_once_after_seed-context-docs.sh`
 pre-seeds libref docs.
 

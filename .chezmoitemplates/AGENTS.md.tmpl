@@ -32,38 +32,31 @@ Non-trivial logic leaves one runnable check behind (assert or one small test). T
 
 
 <exploration_gate>
-Use the cheapest reliable tool first. Skip this gate when the task does not involve code exploration (e.g. file edits, conversation, file ops, running commands). The `open-codebase-index` package provides native tools. Do not route them through MCP.
+Use the cheapest reliable tool first. Skip this gate when the task does not involve code exploration (e.g. file edits, conversation, file ops, running commands).
 
 # Decision question — answer this first
 
 Do I need to find code I don't already have a path to?
 
-- **No** — I have the file, I have the symbol, I have a command to run, the task is editing/conversation/file-ops/running commands. Skip this gate. Go straight to `read`, `edit`, `bash`, etc. Do NOT call `index_status` to be diligent; that's an index call without a search to follow.
-- **Yes** — I need to locate unfamiliar code by behavior, symbol, or dependency. The tools below apply.
+- **No** — I have the file, I have the symbol, I have a command to run, the task is editing/conversation/file-ops/running commands. Skip this gate. Go straight to `read`, `edit`, `bash`, etc.
+- **Yes** — I need to locate unfamiliar code by behavior, symbol, or dependency. The ladder below applies.
 
-# When exploration is needed
+# Retrieval ladder (zg)
 
-1. `index_status` — confirm the index is healthy. If it is missing or stale, `index_codebase` (or `/index`) before any search. Never run `index_codebase` without an immediate search to use it.
-2. `codebase_context` — preferred first repository tool for conceptual discovery, symbol definitions, and dependency paths.
-3. `codebase_peek` — metadata-only lookup (symbols, references, file discovery) when you need location, not source.
-4. `codebase_search` — behavior and implementation chunks. Mandated for "what does this code do" questions when the index is built; never `bash grep`/`rg`/line-by-line `read` to answer one.
-5. `implementation_lookup` — jump to a known symbol's definition.
-6. `find_similar` / `call_graph` / `call_graph_path` — duplicates, callers, callees, dependency flow.
-7. `libref query <lib> <topic>` — before `web_search` / `fetch_url` for library or API docs. For an unknown lib: `libref list` → `query` → `libref add <github_repo>` (registers the source) → `query` again. Fall through to `web_search` / `fetch_url` only when libref lacks the package.
-8. `read` (targeted lines only) — AFTER the index tools narrowed the location. Never as a first move for exploration.
-9. `grep` / `glob` — last-mile regex, dotfiles, gitignored paths. Use only when the index can't answer (no symbol match, file outside the index, or path is already known).
+1. `zvec_grep_search` (MCP tool) — semantic/conceptual discovery: wording or location unknown, "how does X work", cross-file or architectural questions.
+2. `zg query --rg <pattern>` (bash) — exact words, identifiers, paths, regex. Managed ripgrep, no index needed.
+3. `libref query <lib> <topic>` — before `web_search` / `fetch_url` for library or API docs. For an unknown lib: `libref list` → `query` → `libref add <github_repo>` (registers the source) → `query` again. Fall through to `web_search` / `fetch_url` only when libref lacks the package.
+4. `read` (targeted lines only) — AFTER search narrowed the location. Never as a first move for exploration.
+5. `grep` / `glob` — last-mile regex in dotfiles, gitignored paths, or when zg is unavailable.
 
 # Rules
 
-- `codebase_*` / `index_*` are native package tools, not MCP tools. Call them directly by the names shown in the active tool list.
-- The index exists to serve search. `index_status` and `index_codebase` are prerequisites to using `codebase_context` / `codebase_peek` / `codebase_search` / `implementation_lookup` / `call_graph`; never standalone diligence.
-- `read` is not an exploration tool — find candidates with the index first, then read targeted ranges.
-- Never shell-search (`bash grep`, `rg`, `find`, `cat`) for code exploration when the index is built.
-- `call_graph` answers import and call-flow questions — do not trace manually.
-- `codebase_search` is the default for "what does this code do" questions — do not fall back to `bash grep` / `rg` for semantic lookup when the index is built.
+- Prefer `zvec_grep_search` over shell grep for semantic "what does this code do" questions; results arrive as source-linked snippets — treat a sufficient snippet as already-read evidence.
+- Use `zg query --rg` (bash) instead of raw `grep`/`rg` when available: same flags, compact output.
+- Only `zvec_grep_search` needs an index. Index lifecycle (build/rebuild/drop) stays CLI-side: `zg index` — never run it silently; only on explicit request or when a search says the index is missing and the task needs it.
+- `read` is not an exploration tool — find candidates with search first, then read targeted ranges.
 - `libref add <github_repo>` is how to register a library source. Do not skip registration before querying an unknown lib.
 
-Mnemonic: need search → `index_status` → `codebase_context` → `codebase_peek` / `codebase_search` → `implementation_lookup` / `call_graph` → targeted `read`. Don't need search → skip the gate.
 </exploration_gate>
 
 <coding_discipline>

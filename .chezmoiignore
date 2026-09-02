@@ -25,7 +25,6 @@
 !.config/opencode/agent
 !.config/opencode/opencode.json
 !.config/opencode/AGENTS.md
-!.config/opencode/codebase-index.json
 !.config/opencode/dcp.jsonc
 
 # === Pi ===

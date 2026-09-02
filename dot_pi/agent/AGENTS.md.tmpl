@@ -20,8 +20,11 @@ All AI-agent config lives in the `~/.local/share/chezmoi-ai` chezmoi repo — Pi
 
 After edits, apply with `cd ~/.local/share/chezmoi-ai && mise run apply`, then commit in that repo. The live files are generated output; direct edits to them are lost on the next apply.
 
-## Codebase Index Package
+## zg (zvec-grep)
 
-`open-codebase-index` is installed as a native Pi package. Use its tools directly (`index_status`, `index_codebase`, `codebase_context`, `codebase_peek`, `codebase_search`, `implementation_lookup`, `call_graph`, etc.); do not call them through `mcp` or use `codebase_index_*` MCP names.
+`zvec_grep_search` is available as an MCP tool (via pi-mcp-adapter). It runs indexed semantic search over the current workspace and returns source-linked snippets.
 
-Prefer `codebase_context` first for repository questions. Run `index_status` when readiness is unknown and `index_codebase` when the index is missing or stale. Slash-command variants: `/index [force|estimate|verbose]` and `/status`. Use `force` only for a full rebuild or provider/model incompatibility.
+- Semantic discovery ("where is X handled", cross-file, conceptual) → `zvec_grep_search`.
+- Exact words, identifiers, paths, regex → `zg query --rg <pattern>` via bash (no index needed).
+- Index lifecycle is CLI-side: `zg index` / `zg status`. Never rebuild or drop an index silently — only on explicit request.
+- A sufficient source-linked snippet counts as read evidence; open the cited file only when a needed detail falls outside the snippet.

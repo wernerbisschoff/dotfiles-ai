@@ -3,7 +3,6 @@
 
 # OMP Tool Guidance
 
-> **OMP override (supersedes the shared `exploration_gate` above):** the claim that `codebase_index_*` tools "are native package tools, not MCP tools" is wrong in OMP sessions. In OMP they may appear as native names **or** only as `xd://mcp__codebase_index_*` MCP devices — see the **Codebase Index Package** section at the end of this file for the correct invocation forms and troubleshooting.
 
 ## Approval Modes
 
@@ -55,36 +54,3 @@ If a server is running for the repo's primary language, lean on it for every ste
 - Diagnostics and `code_actions` are LSP-native; don't reimplement them with `bash`.
 - When LSP disagrees with `grep`/`read`, trust LSP — it sees shadowing and re-exports text tools can't.
 
-## Codebase Index Package
-
-`open-codebase-index` provides the codebase search tools, but how they appear in this session's active tool list depends on how the plugin was mounted. **Do not assume a single form.** Check the active tool list at session start before calling any of these.
-
-### Invocation forms
-
-Two forms exist; pick the one that matches what your session actually exposes.
-
-**Form A — native tool names** (when the plugin loads them directly into the active tool list):
-Call `index_status`, `codebase_context`, `codebase_peek`, `codebase_search`, `implementation_lookup`, `call_graph`, `call_graph_path`, `index_codebase`, `find_similar`, `code_communities`, `index_health_check`, `pr_impact` as ordinary tool calls. Slash-command variants `/index [force|estimate|verbose]` and `/status` also resolve.
-
-**Form B — `xd://` MCP device** (when only the MCP form is mounted, as in this session):
-Each tool is reachable by writing its JSON args object as `content` to `xd://mcp__codebase_index_<op>` via the `write` tool. For example:
-```
-write(path: "xd://mcp__codebase_index_index_status", content: "{}")
-write(path: "xd://mcp__codebase_index_codebase_context", content: json.dumps({"query": "...", "tokenBudget": 1200}))
-write(path: "xd://mcp__codebase_index_index_codebase", content: json.dumps({"force": true}))
-```
-Read the schema at `xd://mcp__codebase_index_<op>` before the first call (some require `query`; `index_codebase` accepts `{force, estimateOnly, verbose}`).
-
-### When to use which
-
-- If `index_status` (or `xd://mcp__codebase_index_index_status`) is callable as a native tool, use Form A — it's faster and keeps the call inline with other tool calls.
-- If the session exposes only the `xd://mcp__codebase_index_*` devices, use Form B. Calling the bare native name returns "not found"; calling the device path with the wrong name also returns "not found" — confirm the exact spelling against the active tool list or the `xd://` device inventory.
-
-Prefer `codebase_context` first for repository questions. Run `index_status` when readiness is unknown; run `index_codebase` when the index is missing or stale. Use `force: true` only for a full rebuild or provider/model incompatibility.
-
-### Troubleshooting
-
-- **`index_status` reports "Automatic indexing failed"** — the embedding provider is unreachable. Common cause: a local custom provider (e.g. `custom/qwen3-embedding:0.6b`) whose endpoint is down. Check the provider's process/URL, then run `index_codebase(force: true)` (or `xd://mcp__codebase_index_index_codebase` with `{"force": true}`) once the provider is healthy.
-- **Compatibility warning: stored index uses v1 checkout-absolute paths, project requires portable v2** — paths inside the index are stale relative to the current checkout. `index_codebase(force: true)` rebuilds with v2 path storage. A failed rebuild that returns "No result provided" usually means the embedding provider failed again; fix the provider before retrying.
-- **`index_status` succeeds but search returns empty** — the index exists but the target files changed since the last build. Run `index_codebase` (incremental) before searching again.
-- **Parallel batches return empty results alongside an embedding failure** — a single transient failure can swallow the batch. Re-issue the failed calls individually.

@@ -33,5 +33,5 @@ if ! has npm; then
 	exit 0
 fi
 
-install_npm_global "open-codebase-index"
+install_npm_global "@zvec/zvec-grep"
 install_npm_global "@wernerbisschoff/libref"

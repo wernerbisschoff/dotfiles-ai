@@ -5,5 +5,10 @@
       "info": false
     }
   },
-  "mcpServers": {}
+  "mcpServers": {
+    "zvec_grep": {
+      "command": "zg",
+      "args": ["server", "--stdio"]
+    }
+  }
 }

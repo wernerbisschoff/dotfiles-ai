@@ -1,47 +1,38 @@
 ## [OBJECTIVE]
 
-Call the native `index_codebase` tool **once** to build or refresh the local semantic-search index. It is provided by the installed `open-codebase-index` package/plugin, not by MCP.
-
-## [SIGNATURE]
-
-```
-index_codebase(
-  force?: boolean,          // default false — incremental re-index
-  estimateOnly?: boolean,   // default false — cost estimate only
-  verbose?: boolean         // default false — surface skipped files / parse failures
-)
-```
+Run the `zg` CLI to build, refresh, or inspect the zvec-grep index for the current workspace. zg is installed globally via npm (`@zvec/zvec-grep`). The MCP tool `zvec_grep_search` only searches — index lifecycle lives here.
 
 ## [ARGUMENT_PARSING]
 
-`$ARGUMENTS` is whitespace-separated flags. Map each token to a parameter:
+`$ARGUMENTS` is whitespace-separated tokens:
 
-| Token      | Sets                |
-|------------|---------------------|
-| `force`    | `force=true`        |
-| `estimate` | `estimateOnly=true` |
-| `verbose`  | `verbose=true`      |
+| Token     | Action                                        |
+|-----------|-----------------------------------------------|
+| `force`   | `zg index --rebuild` (full rebuild)           |
+| `drop`    | `zg index --drop --yes` (remove the index)    |
+| `status`  | `zg status` (inspect only, no changes)        |
+| *(none)*  | `zg index` (create or incremental update)     |
 
-Unknown tokens: ignore them. Empty `$ARGUMENTS` is the common case — all flags default to `false`.
+Unknown tokens: ignore them. Empty `$ARGUMENTS` is the common case — plain incremental index.
 
 ## [EXECUTION]
 
 1. **Announce** — print one line:
    ```
-   → index_codebase(force=<bool>, estimateOnly=<bool>, verbose=<bool>)
+   → zg <chosen command>
    ```
-2. **Call** `index_codebase` directly exactly once. Do not use `mcp`, an `mcp__*` alias, `bash`, `find`, `glob`, or `ls`.
-3. **Report** — print the tool's return value verbatim under `## Result`.
+2. **Run** the chosen command via `bash`. Do not wrap it in `eval`; call it directly.
+3. **Report** — print the command's output verbatim under `## Result`.
 
 ## [OUTPUT]
 
 Your entire response is exactly this block:
 
 ```markdown
-→ index_codebase(force=<bool>, estimateOnly=<bool>, verbose=<bool>)
+→ zg <chosen command>
 
 ## Result
-<tool return value, unmodified>
+<command output, unmodified>
 ```
 
 Nothing else. No follow-up suggestions.

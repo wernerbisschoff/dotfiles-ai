@@ -1,14 +1,10 @@
 {
   "mcpServers": {
-    "codebase-index": {
-      "command": "npx",
+    "zvec_grep": {
+      "command": "zg",
       "args": [
-        "-y",
-        "--package",
-        "open-codebase-index@latest",
-        "open-codebase-index-mcp",
-        "--host",
-        "pi"
+        "server",
+        "--stdio"
       ]
     }
   }

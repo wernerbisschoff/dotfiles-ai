@@ -149,7 +149,8 @@
       "Bash(git push *)",
 
       "Bash(gemini *)",
-      "Bash(task-master *)"
+      "Bash(task-master *)",
+      "mcp__zvec_grep__*"
     ],
     "deny": [
       "Bash(*gh api graphql*mutation*)",

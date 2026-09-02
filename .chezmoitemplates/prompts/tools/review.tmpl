@@ -94,21 +94,21 @@ First, use the contract's `files.review_strategy` to pick the appropriate review
 |----------|------|----------|
 | **full** | ≤5 files, ≤5k diff lines | Read every file — full deep review |
 | **diff_first** | 5-15 files or 5k-20k diff lines | Read branch_diff_path first, then governance, then only high-impact source files |
-| **targeted** | >15 files or >20k diff lines | Read branch_diff_path + governance only; use codebase_peek for anything else |
+| **targeted** | >15 files or >20k diff lines | Read branch_diff_path + governance only; use zvec_grep_search for anything else |
 
 ### Step 1 — Diff file + Stat + Commits
 Read the combined diff at `branch_diff_path` (or `diff_path` for working tree changes) to understand what actually changed. Read `stat_path` for per-file change magnitudes and `recent_commits_path` for context.
 
 ### Step 3 — Prioritize files for reading
 Use `files.categories` to decide what to deep-read vs peek:
-- **Core** (`src/`): Read in full if high churn. Use `codebase_peek` for simple additions.
+- **Core** (`src/`): Read in full if high churn. Use `zvec_grep_search` for simple additions.
 - **Tests** (`tests/`): Read in full for RED phase tests. Skim for GREEN/REFACTOR tests.
 - **Governance** (`specs/`, `CLAUDE.md`): Read in full.
 - **Config** (`.gitignore`, language config files such as `pyproject.toml` / `package.json`): Read only if changes are non-trivial.
 - **Prompts** (`prompts/`): Skim — check template correctness, not logic.
 
-### Step 4 — Use codebase_peek over full reads
-For verifying imports, function signatures, or type consistency, use `codebase_peek` or `codebase_search` instead of full file reads. These are ~10x cheaper. Reserve full `Read` for:
+### Step 4 — Use zvec_grep_search over full reads
+For verifying imports, function signatures, or type consistency, use `zvec_grep_search` or `zg query --rg` instead of full file reads. These are ~10x cheaper. Reserve full `Read` for:
 - Files where you need to evaluate logic, complexity, or security
 - Governance files (spec, PRD, constitution)
 - The branch diff file
@@ -141,7 +141,7 @@ Analyze files according to the review strategy:
 
 **full strategy** — Read and analyze every file across all domains.
 
-**diff_first strategy** — Deep-analyze only the files you read in full (governance + core + high-churn files). For remaining files, use `codebase_peek`/`codebase_search` to verify:
+**diff_first strategy** — Deep-analyze only the files you read in full (governance + core + high-churn files). For remaining files, use `zvec_grep_search`/`zg query --rg` to verify:
 - Import sources are correct
 - Function signatures match call sites
 - Types are used consistently

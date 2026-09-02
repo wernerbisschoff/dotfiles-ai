@@ -27,4 +27,4 @@ node_modules/
 
 # Local runtime state
 *.bak
-.codebase-index/
+.zvec-grep/

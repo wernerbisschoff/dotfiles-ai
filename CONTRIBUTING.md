@@ -47,7 +47,7 @@ with an [emoji prefix](https://gitmoji.dev/) for visual scannability.
 ```text
 ✨ feat(pi): add commit-convention lookup in commit skill
 🐛 fix(omp): handle null theme on first launch
-📚 docs(agents): document codebase-index toolchain
+📚 docs(agents): document zg search toolchain
 🔁 refactor(opencode): rename footer file for clarity
 🚀 perf(pi): skip jq on small contracts
 ✅ test(commit): cover conventional+emoji prefix parsing

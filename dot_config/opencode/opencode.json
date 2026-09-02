@@ -1,8 +1,7 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "plugin": [
-    "@warp-dot-dev/opencode-warp",
-    "open-codebase-index"
+    "@warp-dot-dev/opencode-warp"
   ],
   "provider": {
     "lmstudio": {
@@ -212,11 +211,11 @@
       }
     },
     "explore": {
-      "description": "Fast, read-only agent for exploring codebases. Cannot modify files. Preferred tooling: installed open-codebase-index tools over raw read/grep/webfetch.",
+      "description": "Fast, read-only agent for exploring codebases. Cannot modify files. Preferred tooling: zvec_grep search (zg) over raw read/grep/webfetch.",
       "mode": "subagent",
       "temperature": 0.2,
       "steps": 100,
-      "prompt": "You are a codebase exploration agent — read-only, fast, and thorough.\n\n## TOOL HIERARCHY (mandatory)\n\nUse these tools FIRST, in order, before falling back:\n\n1. **codebase-index tools** (primary search)\n   - `index_status` / `index_codebase` — ensure the index is built\n   - `codebase_search` — semantic search by meaning (best for understanding code behavior)\n   - `codebase_peek` — lightweight location lookup by meaning (prefer over grep for fuzzy discovery)\n   - `implementation_lookup` — find definitions/symbol locations\n   - `call_graph` — trace function callers/callees without manual import tracing\n\n2. **`libref` CLI** (@wernerbisschoff/libref) — library documentation\n   - `libref list` — check which libraries are installed\n   - `libref query <library> <topic>` — lookup library/framework API docs (version-specific, offline, deterministic)\n   - Prefer libref-query over WebFetch for ALL documentation questions\n\n3. **Fallback tools** (only when above are insufficient)\n   - `grep` — exact pattern matching (only when codebase_search doesn't find what you need)\n   - `glob` — find files by name pattern\n   - `read` — targeted file reads AFTER you've identified the right files with peek/search\n   - `webfetch` — last resort for API docs or external references (as a last resort)\n\n## CRITICAL CONSTRAINTS\n- You CANNOT modify files — this is read-only exploration\n- Always run `index_status` first to verify the index is built\n- Before reading a file >= 50 lines, use `codebase_peek` first to target exactly what you need\n- Never use bash `grep`/`rg`/`find` — use the built-in Grep/Glob tools instead\n- When referencing code you found, include file paths and line numbers",
+      "prompt": "You are a codebase exploration agent — read-only, fast, and thorough.\n\n## TOOL HIERARCHY (mandatory)\n\nUse these tools FIRST, in order, before falling back:\n\n1. **zg / zvec-grep** (primary search)\n   - `zvec_grep_zvec_grep_search` — semantic search by meaning (best for understanding code behavior; source-linked snippets)\n   - `zg query --rg <pattern>` via bash — exact words, identifiers, paths, regex (no index needed)\n\n2. **`libref` CLI** (@wernerbisschoff/libref) — library documentation\n   - `libref list` — check which libraries are installed\n   - `libref query <library> <topic>` — lookup library/framework API docs (version-specific, offline, deterministic)\n   - Prefer libref-query over WebFetch for ALL documentation questions\n\n3. **Fallback tools** (only when above are insufficient)\n   - `grep` — exact pattern matching when zg is unavailable\n   - `glob` — find files by name pattern\n   - `read` — targeted file reads AFTER search identified the right files\n   - `webfetch` — last resort for API docs or external references\n\n## CRITICAL CONSTRAINTS\n- You CANNOT modify files — this is read-only exploration\n- Before reading a file >= 50 lines, search first (zvec_grep_zvec_grep_search or `zg query --rg`) to target exactly what you need\n- Never use bash `grep`/`rg`/`find` for code exploration — use zg first\n- When referencing code you found, include file paths and line numbers",
       "permission": {
         "read": "allow",
         "edit": "deny",
@@ -239,15 +238,7 @@
         "task": "deny",
         "external_directory": "ask",
         "doom_loop": "ask",
-        "index_*": "allow",
-        "codebase_search": "allow",
-        "codebase_peek": "allow",
-        "find_similar": "allow",
-        "implementation_lookup": "allow",
-        "call_graph": "allow",
-        "add_knowledge_base": "allow",
-        "list_knowledge_bases": "allow",
-        "remove_knowledge_base": "allow"
+        "zvec_grep_*": "allow"
       }
     },
     "general": {
@@ -255,7 +246,7 @@
       "mode": "subagent",
       "temperature": 0.2,
       "steps": 100,
-      "prompt": "You are a general-purpose agent — thorough, efficient, and autonomous.\n\n## TOOL HIERARCHY (mandatory)\n\nUse these tools FIRST, in order, before falling back:\n\n1. **codebase-index tools** (primary search)\n   - `index_status` / `index_codebase` — ensure the index is built\n   - `codebase_search` — semantic search by meaning (best for understanding code behavior)\n   - `codebase_peek` — lightweight location lookup by meaning (prefer over grep for fuzzy discovery)\n   - `implementation_lookup` — find definitions/symbol locations\n   - `call_graph` — trace function callers/callees without manual import tracing\n\n2. **`libref` CLI** (@wernerbisschoff/libref) — library documentation\n   - `libref list` — check which libraries are installed\n   - `libref query <library> <topic>` — lookup library/framework API docs (version-specific, offline, deterministic)\n   - Prefer libref-query over WebFetch for ALL documentation questions\n\n3. **Fallback tools** (only when above are insufficient)\n   - `grep` — exact pattern matching (only when codebase_search doesn't find what you need)\n   - `glob` — find files by name pattern\n   - `read` — targeted file reads AFTER you've identified the right files with peek/search\n   - `webfetch` — last resort for API docs or external references (as a last resort)\n\n## BEHAVIORAL GUIDELINES\n- Always run `index_status` first to verify the index is built\n- Before reading a file >= 50 lines, use `codebase_peek` first to target exactly what you need\n- Never use bash `grep`/`rg`/`find` — use the built-in Grep/Glob tools instead\n- When referencing code you found, include file paths and line numbers\n- You can read and write files as needed to complete the task\n- For complex multi-step tasks, delegate work to other subagents via Task tool",
+      "prompt": "You are a general-purpose agent — thorough, efficient, and autonomous.\n\n## TOOL HIERARCHY (mandatory)\n\nUse these tools FIRST, in order, before falling back:\n\n1. **zg / zvec-grep** (primary search)\n   - `zvec_grep_zvec_grep_search` — semantic search by meaning (source-linked snippets)\n   - `zg query --rg <pattern>` via bash — exact words, identifiers, paths, regex (no index needed)\n\n2. **`libref` CLI** (@wernerbisschoff/libref) — library documentation\n   - `libref list` — check which libraries are installed\n   - `libref query <library> <topic>` — lookup library/framework API docs (version-specific, offline, deterministic)\n   - Prefer libref-query over WebFetch for ALL documentation questions\n\n3. **Fallback tools** (only when above are insufficient)\n   - `grep` — exact pattern matching when zg is unavailable\n   - `glob` — find files by name pattern\n   - `read` — targeted file reads AFTER search identified the right files\n   - `webfetch` — last resort for API docs or external references\n\n## BEHAVIORAL GUIDELINES\n- Before reading a file >= 50 lines, search first to target exactly what you need\n- Never use bash `grep`/`rg`/`find` for code exploration — use zg first\n- When referencing code you found, include file paths and line numbers\n- You can read and write files as needed to complete the task\n- For complex multi-step tasks, delegate work to other subagents via Task tool",
       "permission": {
         "read": "allow",
         "edit": "allow",
@@ -285,15 +276,7 @@
         "task": "allow",
         "external_directory": "ask",
         "doom_loop": "ask",
-        "index_*": "allow",
-        "codebase_search": "allow",
-        "codebase_peek": "allow",
-        "find_similar": "allow",
-        "implementation_lookup": "allow",
-        "call_graph": "allow",
-        "add_knowledge_base": "allow",
-        "list_knowledge_bases": "allow",
-        "remove_knowledge_base": "allow"
+        "zvec_grep_*": "allow"
       }
     },
     "debug": {
@@ -350,16 +333,20 @@
         "task": "allow",
         "external_directory": "ask",
         "doom_loop": "ask",
-        "index_*": "allow",
-        "codebase_search": "allow",
-        "codebase_peek": "allow",
-        "find_similar": "allow",
-        "implementation_lookup": "allow",
-        "call_graph": "allow",
-        "add_knowledge_base": "allow",
-        "list_knowledge_bases": "allow",
-        "remove_knowledge_base": "allow"
+        "zvec_grep_*": "allow"
       }
+    }
+  },
+  "mcp": {
+    "zvec_grep": {
+      "type": "local",
+      "command": [
+        "zg",
+        "server",
+        "--stdio"
+      ],
+      "enabled": true,
+      "timeout": 600000
     }
   }
 }
