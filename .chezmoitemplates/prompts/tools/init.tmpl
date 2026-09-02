@@ -145,7 +145,7 @@ Run the pre-script to detect project type and gather init state:
 6. Formulate structural changes, executing the output format precisely as laid out in `<output_format_schemas>`. Ensure zero raw XML tags leak into the generated markdown response body.
 7. If the user input describes a multi-phase implementation plan, reflow its inline lists into the Technical Execution Context schema with one field per line.
 8. **Each generated `mise.toml` includes a `hooks` task** that installs both pre-commit and pre-push git hooks via `mise generate git-pre-commit --write && mise generate git-pre-commit --hook pre-push --write`. The `setup` task depends on `hooks`, so `mise run setup` installs deps **and** both hooks. The `pre-commit` task runs format-check + lint; the `pre-push` task runs tests.
-9. Confirm standard init artifacts exist: `mise.toml`, `.env.example`, `.gitignore`, `CLAUDE.md`, `README.md`.
+9. Confirm standard init artifacts exist: `mise.toml`, `.env.example`, `.gitignore`, `CLAUDE.md`, `README.md`. Ensure `.gitignore` covers local search state: `.zvec-grep/` (zg index) and `.codebase-index/` (legacy).
 
 ### Phase 2: Postflight
 Run the post-script to confirm init artifacts. The post-script handles ALL operational concerns: cross-agent symlink enforcement (`AGENTS.md` -> `CLAUDE.md`), file staging, and commit preparation.
