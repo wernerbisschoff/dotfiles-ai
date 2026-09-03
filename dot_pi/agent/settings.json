@@ -12,9 +12,8 @@
     "npm:pi-hashline-edit",
     "npm:pi-lmstudio",
     "npm:@vigolium/piolium",
-    "npm:pi-btw",
     "npm:pi-commandcode-provider",
-    "npm:pi-crof"
+    "npm:pi-btw"
   ],
   "treeFilterMode": "user-only",
   "hideThinkingBlock": true,
