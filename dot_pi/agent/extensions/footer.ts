@@ -12,15 +12,16 @@
  *   • git status    — `[!?+✘»=$⇡⇣⇕]` Nerd Font indicator block
  *   • runtime       — `via <icon> <version>` for detected toolchain
  *
- * Right side (drops first when too narrow):
- *   • tokens • cost   — context-window usage + session cost
-* Width-aware shedding (applied in order until the line fits `width`):
-*   1. Drop `model` from the right side
-*   2. Drop `tokens` (left side only)
-*   3. Wrap to two lines (cwd + status + runtime on L1, branch on L2)
-*   4. If right (model • tokens) doesn't fit on L2: drop it to a 3rd line (left-aligned)
-*   5. Truncate `branch` in L2 with `…` (60 → 50 → 40 → 30 → 20 → 15 → 12 → 10 → 8)
-*   6. Hard truncate L2; right (if any) on a final L3 (last resort)
+* Right side:
+*   • tokens • cost   — context-window usage + session cost
+* Width-aware layout (applied in order until the line fits `width`):
+*   1. Full single line
+*   2. Wrap to two lines (cwd + status + runtime on L1, branch on L2,
+*      keeps model visible instead of dropping it)
+*   3. If right (model • tokens) doesn't fit on L2: drop it to a 3rd line (left-aligned)
+*   4. Truncate `branch` in L2 with `…` (60 → 50 → 40 → 30 → 20 → 15 → 12 → 10 → 8)
+*   5. Hard truncate L2; right (if any) on a final L3 (last resort)
+*   6. No branch (or L1 overflows): drop `model`, then `tokens`, then hard truncate
  * Reactive:
  *   • git branch   → footerData.onBranchChange (Pi's built-in watcher)
  *   • git status   → re-read after agent_end, tool_execution_end,
@@ -622,18 +623,11 @@ function buildModelSegment(
 	return theme.fg("accent", modelId);
 }
 
-/**
-* Lay out the segments within `width`. Returns one or two lines.
-*
-* Single-line strategies (tried first):
-*   full layout, then drop model, then drop tokens.
-*
-* Wrap to two lines (preferred over truncating the branch in single-line):
-*   line 1: cwd + status + runtime
-*   line 2: on <branch>, with right-side padding (model • tokens)
-*
-* Falls back to truncating the branch in line 2 if even line 2 overflows.
-* Last resort: hard truncate both lines.
+/*
+* Lay out the segments within `width`. Full single line first, then wrap
+* to two lines (preferred over dropping model/tokens so the model stays
+* visible). Shedding (drop model, then tokens) only runs when wrapping
+* adds no value (no branch, or line 1 overflows).
 */
 function renderLine(
 theme: Theme,
@@ -684,17 +678,16 @@ return blocks
 };
 const leftFull = buildLeft(null);
 
-// 1. Single-line strategies.
+// 1. Full single line.
 if (fitsWithGap(leftFull, rightWithModel)) return [pad(leftFull, rightWithModel)];
-if (fitsWithGap(leftFull, rightTokensOnly)) return [pad(leftFull, rightTokensOnly)];
-if (fitsWithGap(leftFull, "")) return [leftFull];
-
-// 2. Wrap to two lines. Line 1: cwd + status + runtime. Line 2: branch.
+// 2. Wrap (keeps model visible) before shedding model/tokens.
 const otherLeft = [parts.gitIndicators, parts.runtime].filter(Boolean).join(sep);
 const line1 = otherLeft ? `${parts.cwd}${sep}${otherLeft}` : parts.cwd;
-// Only wrap when line 1 fits AND there's a branch to wrap. Otherwise
-// wrap adds no value — hard truncate the single line.
-if (!parts.branch || visibleWidth(line1) > width) {
+const canWrap = !!parts.branch && visibleWidth(line1) <= width;
+// 3. Shedding — only when wrap adds no value.
+if (!canWrap) {
+if (fitsWithGap(leftFull, rightTokensOnly)) return [pad(leftFull, rightTokensOnly)];
+if (fitsWithGap(leftFull, "")) return [leftFull];
 return [truncateToWidth(leftFull, width, "")];
 }
 
@@ -722,7 +715,7 @@ return null;
 let layout = tryLayout(left2Full);
 if (layout) return layout;
 
-// 3. Line 2 still overflows — truncate the branch progressively.
+// 4. Line 2 still overflows — truncate the branch progressively.
 for (const maxLen of [60, 50, 40, 30, 20, 15, 12, 10, 8]) {
 if (visibleWidth(branchText) <= maxLen) break;
 const sb = truncateToWidth(branchText, maxLen, "…");
@@ -730,7 +723,7 @@ layout = tryLayout(buildLine2(sb));
 if (layout) return layout;
 }
 
-// 4. Last resort: hard truncate line 2; right (if any) goes to line 3.
+// 5. Last resort: hard truncate line 2; right (if any) goes to line 3.
 if (right) {
 return [line1, truncateToWidth(left2Full, width, ""), right];
 }
