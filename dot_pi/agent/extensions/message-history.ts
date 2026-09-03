@@ -24,10 +24,11 @@
  *   • History is bypassed while an autocomplete dropdown is open (e.g. the
  *     @ file completer): up/down then navigate the suggestion list instead
  *
- * Concurrency: if a second Pi instance is already holding the lock for this
- * cwd's history file, this instance falls back to read-only mode (still
- * cycles through the on-disk history but does not append). Lock is acquired
- * with mkdir(2), released on session_shutdown.
+* Concurrency: the first Pi instance per cwd holds the lock (a dir holding
+* its pid); others run read-only. A lock whose owner is dead (crash,
+* SIGKILL) is stolen on next start, so one crash cannot wedge history
+* read-only forever. The pending debounced write is awaited on
+* session_shutdown, so prompts typed just before quitting still persist.
  */
 import {
 	CustomEditor,
@@ -37,7 +38,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import type { KeybindingsManager } from "@earendil-works/pi-coding-agent";
 import { createHash } from "node:crypto";
-import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 // ─── Configuration ───────────────────────────────────────────────────────────
@@ -48,6 +49,8 @@ const LOCK_EXT = ".lock";
 const FILE_PREFIX = "cwd-";
 /** SHA-256 truncated to 64 bits in hex. ~1 collision per 4B distinct cwds. */
 const HASH_LEN = 16;
+/** Pid-less lock older than this is orphaned (crashed between mkdir and pid write). */
+const STALE_LOCK_MS = 30 * 60 * 1000;
 const MAX_ENTRIES = 1000;
 
 // ─── Storage layer ────────────────────────────────────────────────────────────
@@ -118,28 +121,85 @@ async function writeDisk(cwd: string, entries: string[]): Promise<void> {
 	}
 }
 
-/**
+/*
  * mkdir(2) is atomic on POSIX. Using it as a lockfile is a standard trick:
  * the call either succeeds (we hold the lock) or EEXISTs (someone else does).
- * Returns true if the lock was acquired.
+ * The owner records its pid inside so a later session can steal the lock
+ * when the holder is dead (crash, SIGKILL) instead of staying read-only
+ * forever. Returns true if the lock was acquired.
  */
+const pidFile = (lock: string): string => join(lock, "pid");
+
+function isPidAlive(pid: number): boolean {
+	try {
+		process.kill(pid, 0);
+		return true;
+	} catch (err: unknown) {
+		// ESRCH = dead. EPERM = alive but different user. Anything else = assume alive.
+		return (err as NodeJS.ErrnoException)?.code !== "ESRCH";
+	}
+}
+
+async function claimLock(lock: string): Promise<void> {
+	await mkdir(lock);
+	await writeFile(pidFile(lock), String(process.pid), { mode: 0o600 });
+}
+
+async function lockIsStale(lock: string): Promise<boolean> {
+	let raw: string;
+	try {
+		raw = await readFile(pidFile(lock), "utf8");
+	} catch {
+		// No pid recorded (pre-pid locks, or crashed between mkdir and write).
+		// Only steal when old enough that a live holder would have written it.
+		try {
+			const st = await stat(lock);
+			return Date.now() - st.mtimeMs > STALE_LOCK_MS;
+		} catch {
+			return false;
+		}
+	}
+	const pid = Number(raw.trim());
+	if (!Number.isInteger(pid) || pid <= 0) return true;
+	if (pid === process.pid) return false;
+	return !isPidAlive(pid);
+}
+
 async function tryAcquireLock(cwd: string): Promise<boolean> {
 	const lock = lockFile(cwd);
 	try {
 		await ensureHistoryDir();
-		await mkdir(lock);
+		await claimLock(lock);
 		return true;
 	} catch (err) {
-		if ((err as NodeJS.ErrnoException)?.code === "EEXIST") return false;
-		// EROFS / EACCES / etc — treat as read-only. The user can still cycle.
-		console.warn(`[message-history] lock acquisition failed for ${lock}:`, err);
-		return false;
+		if ((err as NodeJS.ErrnoException)?.code !== "EEXIST") {
+			// EROFS / EACCES / etc — treat as read-only. The user can still cycle.
+			console.warn(`[message-history] lock acquisition failed for ${lock}:`, err);
+			return false;
+		}
+		// Held by someone else — steal it only when the holder is gone.
+		try {
+			if (!(await lockIsStale(lock))) return false;
+			await rm(lock, { recursive: true, force: true });
+			await claimLock(lock);
+			return true;
+		} catch (stealErr) {
+			// Lost a race with another session starting up — stay read-only.
+			if ((stealErr as NodeJS.ErrnoException)?.code !== "EEXIST") {
+				console.warn(`[message-history] lock steal failed for ${lock}:`, stealErr);
+			}
+			return false;
+		}
 	}
 }
 
 async function releaseLock(cwd: string): Promise<void> {
+	const lock = lockFile(cwd);
 	try {
-		await rm(lockFile(cwd), { recursive: true, force: true });
+		// Only release our own lock — never a new owner's after a steal race.
+		const raw = await readFile(pidFile(lock), "utf8").catch(() => null);
+		if (raw !== null && Number(raw.trim()) !== process.pid) return;
+		await rm(lock, { recursive: true, force: true });
 	} catch {
 		/* ignore — best-effort */
 	}
@@ -326,15 +386,17 @@ export default function (pi: ExtensionAPI): void {
 		}, FLUSH_DEBOUNCE_MS);
 	};
 
-	const flushNow = (ctx: ExtensionContext): void => {
-		if (persistence.flushTimer) {
-			clearTimeout(persistence.flushTimer);
-			persistence.flushTimer = null;
-		}
-		if (!persistence.dirty) return;
-		persistence.dirty = false;
-		void writeDisk(cwdForCtx(ctx), persistence.entries);
-	};
+const flushNow = (ctx: ExtensionContext): Promise<void> => {
+if (persistence.flushTimer) {
+clearTimeout(persistence.flushTimer);
+persistence.flushTimer = null;
+}
+if (!persistence.dirty) return Promise.resolve();
+persistence.dirty = false;
+// Awaited by the session_shutdown handler (pi awaits it before exit),
+// so prompts typed just before quitting still reach disk.
+return writeDisk(cwdForCtx(ctx), persistence.entries);
+};
 
 	const makeEditor = (
 		tui: TUI,
@@ -372,12 +434,12 @@ export default function (pi: ExtensionAPI): void {
 	});
 
 	// Persist any pending writes on shutdown.
-	pi.on("session_shutdown", async (_event, ctx) => {
-		flushNow(ctx);
-		if (persistence.canWrite) {
-			await releaseLock(cwdForCtx(ctx));
-		}
-	});
+pi.on("session_shutdown", async (_event, ctx) => {
+await flushNow(ctx);
+if (persistence.canWrite) {
+await releaseLock(cwdForCtx(ctx));
+}
+});
 
 	// Capture every interactive user submission. `input` fires after extension
 	// commands but before skill/template expansion — we want the raw typed text,
