@@ -44,15 +44,21 @@ Do I need to find code I don't already have a path to?
 # Retrieval ladder (zg)
 
 1. MCP semantic search — use the listed zvec-grep search tool for conceptual discovery: wording unknown, behavior questions, or cross-file relationships.
-2. `zg query --rg <pattern>` (bash) — exact words, identifiers, paths, regex. Managed ripgrep, no index needed.
-3. `libref query <lib> <topic>` — before `web_search` / `fetch_url` for library or API docs. For an unknown lib: `libref list` → `query` → `libref add <github_repo>` (registers the source) → `query` again. Fall through to `web_search` / `fetch_url` only when libref lacks the package.
-4. `read` (targeted lines only) — AFTER search narrowed the location. Never as a first move for exploration.
-5. `grep` / `glob` — last-mile regex in dotfiles, gitignored paths, or when zg is unavailable.
+   - For several conceptual angles, issue multiple searches and use the tool's `fuse` option when available.
+2. `zg query <question>` (bash) — indexed hybrid FTS plus vector search for one natural-language question. Use this when you need both exact terms and semantic matches.
+   - Combine focused query groups with `zg query --fts <terms> --vector <meaning> --fuse` when one query misses either lexical or conceptual matches.
+   - Use `--limit`, `--glob`/`--type`, `--symbol-type`, `--prefer-symbol`, and `--preview` to focus results. Use `--trace` or `--debug` only when diagnosing ranking or transport.
+   - `--fuse` merges query groups into one ranked list. It is a flag on `zg query`, not a separate command.
+3. `zg query --rg <pattern>` (bash) — exact words, identifiers, paths, regex. Managed ripgrep, no index needed. Use this for exhaustive occurrence checks, not semantic discovery.
+4. `libref query <lib> <topic>` — before `web_search` / `fetch_url` for library or API docs. For an unknown lib: `libref list` → `query` → `libref add <github_repo>` (registers the source) → `query` again. Fall through to `web_search` / `fetch_url` only when libref lacks the package.
+5. `read` (targeted lines only) — AFTER search narrowed the location. Never as a first move for exploration.
+6. `grep` / `glob` — last-mile regex in dotfiles, gitignored paths, or when zg is unavailable.
 
 # Rules
 
 - Prefer MCP semantic search over shell grep for semantic "what does this code do" questions; results arrive as source-linked snippets — treat a sufficient snippet as already-read evidence.
-- For multi-angle discovery, pass multiple semantic queries and use `fuse` when one ranked list is easier to inspect. Without fusion, inspect each query group separately.
+- For multi-angle MCP discovery, pass multiple semantic queries and use `fuse` when one ranked list is easier to inspect. Without fusion, inspect each query group separately.
+- For CLI discovery, prefer positional hybrid search for natural-language questions; use explicit `--fts` for exact terms, `--vector` for meaning, and `--fuse` when combining groups.
 - Use `zg query --rg` (bash) instead of raw `grep`/`rg` when available: same flags, compact output.
 - Only semantic search needs an index. Index lifecycle (build/rebuild/drop) stays CLI-side: `zg index` — never run it silently; only on explicit request or when a search says the index is missing and the task needs it.
 - Do not invent a zvec-grep exact-match MCP tool. If no exact-match tool is listed, use `zg query --rg`.

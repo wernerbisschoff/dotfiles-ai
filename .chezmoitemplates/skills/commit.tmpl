@@ -23,7 +23,7 @@ $ARGUMENTS
 
 <invariants>
 1. **Read the contract from `pre` stdout** — paths to `RECENT_COMMITS` and `plan_target` are in the contract. The contract's `files` object has `staged`, `unstaged`, `untracked` arrays with counts.
-2. **Do NOT re-run git status/diff/log** to "double check" — the contract already has this. Exception: `git diff -- <path>` is allowed when you need code context for one specific file (e.g., a refactor or bug fix message).
+2. **Inspect every change before planning** — use Git status and diffs to identify modifications, additions, deletions, copies, and renames. Do not infer a change from its path alone.
 3. **Write the plan to `plan_target` from the contract**, then run:
    ```bash
    PLAN_TARGET=<plan_target> ~/.agents/skills/commit/commit.sh post
@@ -31,23 +31,25 @@ $ARGUMENTS
 4. **Hooks are not bypassed** — `post` runs `git commit` with hooks enabled. If a hook fails, fix the underlying issue. Never retry with `--no-verify`.
 </invariants>
 
-<token_efficiency>
-**Primary source for grouping**: file paths from the `files` object. Paths are self-documenting — `Feedback reports/script/extract.py` needs no diff read to understand.
+<change_inspection>
+After `pre`, always run:
 
-**When paths alone are sufficient** (no diff read):
-- Bulk additions of new skill/command files → `feat`
-- Bulk deletions of template/config files → `refactor` or `chore`
-- Lockfile-only changes → `chore`
-- Documentation-only modifications → `docs`
-- Unrelated config changes → `chore` with specific scope
+```bash
+git status --short
+git diff --cached --name-status -M -C
+git diff --name-status -M -C
+git diff --cached
+git diff
+```
 
-**When to read one file's diff** (via `git diff -- <path>`):
-- Code refactor (grouping must reflect refactor scope)
-- Bug fix (message must describe root cause)
-- User asked for detailed context
+Use the name-status output to preserve the change type in the plan. A deleted path is a deletion, not a modified file. A rename must name both the old and new paths in the message body.
+
+Read each untracked file because Git diffs omit untracked content. For binary, generated, or very large files, inspect file type and size instead of dumping all content.
+
+Base grouping, titles, and body bullets on the observed changes. File paths are supporting context only. Never create a message from path names without inspecting status and content.
 
 **Always read** `recent_commits_path` (small, <50 lines) for style consistency.
-</token_efficiency>
+</change_inspection>
 
 <acceptance_rule>
 The model defaults to **proceeding without confirmation** for a single-commit plan with no `excluded_files` — this is the safe, expected case when the user invokes /commit on a working tree.

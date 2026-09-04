@@ -87,3 +87,6 @@ memory.md
 !.agents/
 !.agents/skills/
 !.agents/skills/**
+
+# Codex automations are managed outside chezmoi
+./.codex/automations/**
