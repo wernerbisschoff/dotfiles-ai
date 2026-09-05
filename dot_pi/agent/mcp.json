@@ -8,7 +8,8 @@
   "mcpServers": {
     "zvec_grep": {
       "command": "zg",
-      "args": ["server", "--stdio"]
+      "args": ["server", "--stdio"],
+      "lifecycle": "lazy-keep-alive"
     }
   }
 }
