@@ -22,9 +22,9 @@ After edits, apply with `cd ~/.local/share/chezmoi-ai && mise run apply`, then c
 
 ## zg (zvec-grep)
 
-`zvec_grep_search` is available as an MCP tool (via pi-mcp-adapter). It runs indexed semantic search over the current workspace and returns source-linked snippets.
+The zvec-grep MCP search tool runs indexed semantic search (transport: `zg server --stdio`, per `mcp.json`). Routing rules live in `<exploration_gate>` above — this block covers Pi specifics only.
 
-- Semantic discovery ("where is X handled", cross-file, conceptual) → `zvec_grep_search`.
+- Semantic discovery → MCP search with `{"root":"<absolute workspace>","query":"<question>"}` (multi-angle: `queries: [...]`, single ranked list: `fuse: true`).
 - Exact words, identifiers, paths, regex → `zg query --rg <pattern>` via bash (no index needed).
 - Index lifecycle is CLI-side: `zg index` / `zg status`. Never rebuild or drop an index silently — only on explicit request.
 - A sufficient source-linked snippet counts as read evidence; open the cited file only when a needed detail falls outside the snippet.
