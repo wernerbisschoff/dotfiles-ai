@@ -1,5 +1,5 @@
 /**
- * message-history.ts — Persistent up/down arrow message history (per-directory)
+ * message-history.ts — Persistent up/down arrow message history (per-project)
  *
  * Pi's built-in editor only recalls recently submitted prompts while the
  * editor is empty (or cursor at column 0), and only for the current session.
@@ -8,12 +8,12 @@
  *   • Up on the FIRST visual line     → recall an older message
  *   • Down on the LAST visual line    → recall a newer message
  *   • The in-progress draft is preserved (Down past newest restores it)
- *   • History is persisted to disk per project directory, so prompts survive
- *     /new, /exit, restarts, and are shared between sessions in the same cwd
+ *   • History is persisted to disk per project, so prompts survive
+ *     /new, /exit, restarts, and are shared between sessions in the same project
  *
- * Storage: ~/.pi/message-history/cwd-<sha256(cwd)[:16]>.json (file mode 0600).
- * The cwd is hashed so project paths don't appear in filenames; the agent
- * directory is the canonical user-level location (matches pi's other state).
+ * Storage: ~/.pi/agent/message-history/cwd-<sha256(projectKey)[:16]>.json
+ * (file mode 0600). The key is the git top-level directory when inside a
+ * repo, otherwise the cwd. It is hashed so paths don't appear in filenames.
  *
  * Behavior:
  *   • Empty messages and consecutive duplicates are skipped
@@ -24,11 +24,11 @@
  *   • History is bypassed while an autocomplete dropdown is open (e.g. the
  *     @ file completer): up/down then navigate the suggestion list instead
  *
-* Concurrency: the first Pi instance per cwd holds the lock (a dir holding
-* its pid); others run read-only. A lock whose owner is dead (crash,
-* SIGKILL) is stolen on next start, so one crash cannot wedge history
-* read-only forever. The pending debounced write is awaited on
-* session_shutdown, so prompts typed just before quitting still persist.
+ * Concurrency: lock-free. Every session writes; each flush re-reads the disk
+ * file and merges unsaved entries on top, so concurrent sessions in the same
+ * project never clobber each other. Writes are debounced, and the pending
+ * write is awaited on session_shutdown, so prompts typed just before quitting
+ * still persist.
  */
 import {
 	CustomEditor,
@@ -37,20 +37,19 @@ import {
 	getAgentDir,
 } from "@earendil-works/pi-coding-agent";
 import type { KeybindingsManager } from "@earendil-works/pi-coding-agent";
+import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { promisify } from "node:util";
 
 // ─── Configuration ───────────────────────────────────────────────────────────
 
 const HISTORY_DIR = "message-history";
 const FILE_EXT = ".json";
-const LOCK_EXT = ".lock";
 const FILE_PREFIX = "cwd-";
-/** SHA-256 truncated to 64 bits in hex. ~1 collision per 4B distinct cwds. */
+/** SHA-256 truncated to 64 bits in hex. ~1 collision per 4B distinct projects. */
 const HASH_LEN = 16;
-/** Pid-less lock older than this is orphaned (crashed between mkdir and pid write). */
-const STALE_LOCK_MS = 30 * 60 * 1000;
 const MAX_ENTRIES = 1000;
 
 // ─── Storage layer ────────────────────────────────────────────────────────────
@@ -62,28 +61,43 @@ interface DiskShape {
 	version: 1;
 }
 
+const execFileAsync = promisify(execFile);
+
 /**
- * Hash the cwd into a short, opaque filename. Truncated SHA-256 keeps the
- * filename short while making the cwd unrecoverable from the filesystem.
+ * Resolve the history key: git top-level when inside a repo (so every
+ * subdirectory of a project shares one history), otherwise the cwd itself.
  */
-function cwdHash(cwd: string): string {
-	return createHash("sha256").update(cwd).digest("hex").slice(0, HASH_LEN);
+async function projectKey(cwd: string): Promise<string> {
+	try {
+		const { stdout } = await execFileAsync("git", ["-C", cwd, "rev-parse", "--show-toplevel"], {
+			timeout: 2000,
+		});
+		const root = stdout.trim();
+		if (root) return root;
+	} catch {
+		// Not a git repo (or git missing) — fall back to the cwd.
+	}
+	return cwd;
 }
 
-function historyFile(cwd: string): string {
-	return join(getAgentDir(), HISTORY_DIR, `${FILE_PREFIX}${cwdHash(cwd)}${FILE_EXT}`);
+/**
+ * Hash the project key into a short, opaque filename. Truncated SHA-256 keeps
+ * the filename short while making the path unrecoverable from the filesystem.
+ */
+function keyHash(key: string): string {
+	return createHash("sha256").update(key).digest("hex").slice(0, HASH_LEN);
 }
 
-function lockFile(cwd: string): string {
-	return join(getAgentDir(), HISTORY_DIR, `${FILE_PREFIX}${cwdHash(cwd)}${LOCK_EXT}`);
+function historyFile(key: string): string {
+	return join(getAgentDir(), HISTORY_DIR, `${FILE_PREFIX}${keyHash(key)}${FILE_EXT}`);
 }
 
 async function ensureHistoryDir(): Promise<void> {
 	await mkdir(join(getAgentDir(), HISTORY_DIR), { recursive: true, mode: 0o700 });
 }
 
-async function readDisk(cwd: string): Promise<string[]> {
-	const file = historyFile(cwd);
+async function readDisk(key: string): Promise<string[]> {
+	const file = historyFile(key);
 	try {
 		const raw = await readFile(file, "utf8");
 		const parsed = JSON.parse(raw) as Partial<DiskShape>;
@@ -99,8 +113,8 @@ async function readDisk(cwd: string): Promise<string[]> {
 	return [];
 }
 
-async function writeDisk(cwd: string, entries: string[]): Promise<void> {
-	const file = historyFile(cwd);
+async function writeDisk(key: string, entries: string[]): Promise<void> {
+	const file = historyFile(key);
 	const tmp = `${file}.tmp.${process.pid}`;
 
 	try {
@@ -118,90 +132,6 @@ async function writeDisk(cwd: string, entries: string[]): Promise<void> {
 		} catch {
 			/* ignore */
 		}
-	}
-}
-
-/*
- * mkdir(2) is atomic on POSIX. Using it as a lockfile is a standard trick:
- * the call either succeeds (we hold the lock) or EEXISTs (someone else does).
- * The owner records its pid inside so a later session can steal the lock
- * when the holder is dead (crash, SIGKILL) instead of staying read-only
- * forever. Returns true if the lock was acquired.
- */
-const pidFile = (lock: string): string => join(lock, "pid");
-
-function isPidAlive(pid: number): boolean {
-	try {
-		process.kill(pid, 0);
-		return true;
-	} catch (err: unknown) {
-		// ESRCH = dead. EPERM = alive but different user. Anything else = assume alive.
-		return (err as NodeJS.ErrnoException)?.code !== "ESRCH";
-	}
-}
-
-async function claimLock(lock: string): Promise<void> {
-	await mkdir(lock);
-	await writeFile(pidFile(lock), String(process.pid), { mode: 0o600 });
-}
-
-async function lockIsStale(lock: string): Promise<boolean> {
-	let raw: string;
-	try {
-		raw = await readFile(pidFile(lock), "utf8");
-	} catch {
-		// No pid recorded (pre-pid locks, or crashed between mkdir and write).
-		// Only steal when old enough that a live holder would have written it.
-		try {
-			const st = await stat(lock);
-			return Date.now() - st.mtimeMs > STALE_LOCK_MS;
-		} catch {
-			return false;
-		}
-	}
-	const pid = Number(raw.trim());
-	if (!Number.isInteger(pid) || pid <= 0) return true;
-	if (pid === process.pid) return false;
-	return !isPidAlive(pid);
-}
-
-async function tryAcquireLock(cwd: string): Promise<boolean> {
-	const lock = lockFile(cwd);
-	try {
-		await ensureHistoryDir();
-		await claimLock(lock);
-		return true;
-	} catch (err) {
-		if ((err as NodeJS.ErrnoException)?.code !== "EEXIST") {
-			// EROFS / EACCES / etc — treat as read-only. The user can still cycle.
-			console.warn(`[message-history] lock acquisition failed for ${lock}:`, err);
-			return false;
-		}
-		// Held by someone else — steal it only when the holder is gone.
-		try {
-			if (!(await lockIsStale(lock))) return false;
-			await rm(lock, { recursive: true, force: true });
-			await claimLock(lock);
-			return true;
-		} catch (stealErr) {
-			// Lost a race with another session starting up — stay read-only.
-			if ((stealErr as NodeJS.ErrnoException)?.code !== "EEXIST") {
-				console.warn(`[message-history] lock steal failed for ${lock}:`, stealErr);
-			}
-			return false;
-		}
-	}
-}
-
-async function releaseLock(cwd: string): Promise<void> {
-	const lock = lockFile(cwd);
-	try {
-		// Only release our own lock — never a new owner's after a steal race.
-		const raw = await readFile(pidFile(lock), "utf8").catch(() => null);
-		if (raw !== null && Number(raw.trim()) !== process.pid) return;
-		await rm(lock, { recursive: true, force: true });
-	} catch {
-		/* ignore — best-effort */
 	}
 }
 
@@ -324,10 +254,12 @@ class MessageHistoryEditor extends CustomEditor {
 // ─── Persistence controller ───────────────────────────────────────────────────
 
 interface PersistenceState {
-	/** In-memory cache mirroring the on-disk file. Most-recent first. */
+	/** Project key (git root, or cwd outside a repo). Set at session_start. */
+	key: string | null;
+	/** In-memory mirror of the on-disk file. Most-recent first. */
 	entries: string[];
-	/** True if we own the lock and may write. */
-	canWrite: boolean;
+	/** Entries added since the last flush, newest first. Merged over disk on flush. */
+	unsaved: string[];
 	/** Set when an addition is pending flush. */
 	dirty: boolean;
 	/** Flush timer for debounced writes. */
@@ -342,7 +274,7 @@ interface PersistenceState {
 const FLUSH_DEBOUNCE_MS = 250;
 
 function makePersistence(): PersistenceState {
-	return { entries: [], canWrite: false, dirty: false, flushTimer: null };
+	return { key: null, entries: [], unsaved: [], dirty: false, flushTimer: null };
 }
 
 // ─── Text extraction ──────────────────────────────────────────────────────────
@@ -372,31 +304,45 @@ export default function (pi: ExtensionAPI): void {
 	const persistence = makePersistence();
 	let activeEditor: MessageHistoryEditor | null = null;
 
-	const cwdForCtx = (ctx: ExtensionContext): string => ctx.cwd;
+	/**
+	 * Merge unsaved entries over a fresh disk read, then write. Starting from
+	 * disk (not the in-memory mirror) keeps entries saved by concurrent
+	 * sessions in the same project.
+	 */
+	const flushToDisk = async (): Promise<void> => {
+		const key = persistence.key;
+		if (!key || !persistence.dirty) return;
+		persistence.dirty = false;
+		const fresh = persistence.unsaved.slice().reverse(); // oldest first
+		persistence.unsaved = [];
+		const merged = await readDisk(key);
+		for (const item of fresh) {
+			if (merged[0] !== item) merged.unshift(item); // dedup consecutive
+		}
+		if (merged.length > MAX_ENTRIES) merged.length = MAX_ENTRIES;
+		persistence.entries = merged;
+		await writeDisk(key, merged);
+	};
 
-	const scheduleFlush = (ctx: ExtensionContext): void => {
-		if (!persistence.canWrite) return;
+	const scheduleFlush = (): void => {
+		if (!persistence.key) return;
 		persistence.dirty = true;
 		if (persistence.flushTimer) return;
 		persistence.flushTimer = setTimeout(() => {
 			persistence.flushTimer = null;
-			if (!persistence.dirty) return;
-			persistence.dirty = false;
-			void writeDisk(cwdForCtx(ctx), persistence.entries);
+			void flushToDisk();
 		}, FLUSH_DEBOUNCE_MS);
 	};
 
-const flushNow = (ctx: ExtensionContext): Promise<void> => {
-if (persistence.flushTimer) {
-clearTimeout(persistence.flushTimer);
-persistence.flushTimer = null;
-}
-if (!persistence.dirty) return Promise.resolve();
-persistence.dirty = false;
-// Awaited by the session_shutdown handler (pi awaits it before exit),
-// so prompts typed just before quitting still reach disk.
-return writeDisk(cwdForCtx(ctx), persistence.entries);
-};
+	const flushNow = (): Promise<void> => {
+		if (persistence.flushTimer) {
+			clearTimeout(persistence.flushTimer);
+			persistence.flushTimer = null;
+		}
+		// Awaited by the session_shutdown handler (pi awaits it before exit),
+		// so prompts typed just before quitting still reach disk.
+		return flushToDisk();
+	};
 
 	const makeEditor = (
 		tui: TUI,
@@ -411,41 +357,30 @@ return writeDisk(cwdForCtx(ctx), persistence.entries);
 		return editor;
 	};
 
-	pi.on("session_start", async (_event, ctx) => {
+	pi.on("session_start", async (_event, ctx: ExtensionContext) => {
 		if (ctx.mode !== "tui") return;
 
-		const cwd = cwdForCtx(ctx);
+		const key = await projectKey(ctx.cwd);
+		persistence.key = key;
+		persistence.unsaved = [];
+		persistence.dirty = false;
 
-		// Read existing history. Always allowed — even if the lock is held.
-		persistence.entries = await readDisk(cwd);
-
-		// Try to acquire the write lock. If another Pi instance holds it, we
-		// still cycle through the on-disk history but skip persistence.
-		persistence.canWrite = await tryAcquireLock(cwd);
+		// Read existing history. Always allowed — every session reads and writes.
+		persistence.entries = await readDisk(key);
 
 		ctx.ui.setEditorComponent(makeEditor);
-
-		if (!persistence.canWrite) {
-			ctx.ui.notify(
-				"message-history: another Pi session holds the lock for this directory — running read-only",
-				"info",
-			);
-		}
 	});
 
 	// Persist any pending writes on shutdown.
-pi.on("session_shutdown", async (_event, ctx) => {
-await flushNow(ctx);
-if (persistence.canWrite) {
-await releaseLock(cwdForCtx(ctx));
-}
-});
+	pi.on("session_shutdown", async () => {
+		await flushNow();
+	});
 
 	// Capture every interactive user submission. `input` fires after extension
 	// commands but before skill/template expansion — we want the raw typed text,
 	// not the expanded form. Programmatic sends (`sendUserMessage`) carry
 	// `source: "extension"` and are skipped.
-	pi.on("input", (event, ctx) => {
+	pi.on("input", (event) => {
 		if (event.source !== "interactive") return;
 		const text = extractText(event.text);
 		if (!text) return;
@@ -454,15 +389,13 @@ await releaseLock(cwdForCtx(ctx));
 		// a debounced flush. The cache and editor stay in lockstep so that
 		// history persists across session replacements even if the process is
 		// killed before the debounce fires.
-		if (persistence.canWrite) {
-			const trimmed = text;
-			if (persistence.entries[0] !== trimmed) {
-				persistence.entries.unshift(trimmed);
-				if (persistence.entries.length > MAX_ENTRIES) {
-					persistence.entries.length = MAX_ENTRIES;
-				}
-				scheduleFlush(ctx);
+		if (persistence.entries[0] !== text) {
+			persistence.entries.unshift(text);
+			if (persistence.entries.length > MAX_ENTRIES) {
+				persistence.entries.length = MAX_ENTRIES;
 			}
+			persistence.unsaved.unshift(text);
+			scheduleFlush();
 		}
 
 		activeEditor?.addToHistory(text);
