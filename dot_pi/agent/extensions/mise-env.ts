@@ -4,9 +4,7 @@
  * Pi starts Bash with its own long-lived process environment. A later `cd`
  * does not run the interactive mise hook. Resolve mise for each Bash call so
  * tools such as DeviaTDD receive the target worktree environment.
- *
- * PI_MODEL holds the current active model (Pi session metadata). It is
- * passed through to Bash child processes so tools can read it.
+ * Project `.env` values for PI_MODEL and PI_PROVIDER override Pi metadata.
  */
 
 import { spawnSync } from "node:child_process";
@@ -53,8 +51,12 @@ export default function (pi: ExtensionAPI): void {
 			if (!miseEnv) return { command, cwd, env };
 
 			const sessionEnv = Object.fromEntries(
-				PI_SESSION_KEYS.flatMap((key) => (env[key] === undefined ? [] : [[key, env[key]]])),
-			);
+				PI_SESSION_KEYS.flatMap((key) =>
+ 					miseEnv[key] === undefined && env[key] !== undefined
+ 						? [[key, env[key]]]
+ 						: [],
+ 				),
+ 			);
 
 			return {
 				command,
@@ -66,6 +68,16 @@ export default function (pi: ExtensionAPI): void {
 				},
 			};
 		},
+	});
+
+	pi.on("session_start", async (_event, ctx) => {
+		const miseEnv = resolveMiseEnv(ctx.cwd);
+		const provider = miseEnv?.PI_PROVIDER;
+		const modelId = miseEnv?.PI_MODEL;
+		if (!provider || !modelId) return;
+
+		const model = ctx.modelRegistry.find(provider, modelId);
+		if (model) await pi.setModel(model);
 	});
 
 	pi.registerTool({
