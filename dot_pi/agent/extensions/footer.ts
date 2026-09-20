@@ -766,8 +766,6 @@ export default function (pi: ExtensionAPI) {
 			render: () => [],
 			invalidate: () => {},
 		}));
-		// Restore the default editor (drop the previous powerline wrapper).
-		ctx.ui.setEditorComponent(undefined);
 
 		// ── Custom footer ───────────────────────────────────────────────────
 
