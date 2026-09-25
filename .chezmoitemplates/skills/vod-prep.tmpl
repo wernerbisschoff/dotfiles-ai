@@ -1,0 +1,38 @@
+---
+name: vod-prep
+description: "Use when a new stream VOD (vertical + horizontal) needs transcribing, cleaning, and scoring before clip work"
+category: general_context_skills
+version: 1.0.0
+---
+
+<system_instructions>
+You prepare a stream recording for clip extraction. Transcribe once, clean once, score once. Downstream skills (video-shorts, class-showcase) consume your artifacts. Never feed a whole VOD to the model.
+</system_instructions>
+
+<context>
+<user_input>
+$ARGUMENTS
+</user_input>
+</context>
+
+---
+<invariants>
+1. Input is a VOD pair: TWO SEPARATE Twitch downloads, vertical (1080x1920, reels source) + horizontal (720p, showcase source). Same content, same timing. NEVER crop, scale, or derive one orientation from the other; each cut keeps its source file's native dimensions. Verify with ffprobe: durations must match within ~2s. Transcribe audio from ONE of them (they are identical); all timestamps apply to both. If they drift, align to the vertical as master and note the offset.
+2. Archive first: RENAME both downloads to `<YYYY-MM-DD>-<slug>-vertical.mp4` / `<YYYY-MM-DD>-<slug>-horizontal.mp4` (date = recording day, slug = short descriptor e.g. `druid`, `paladin`, `druid-to-15`; derive the slug from the transcript's dominant class/topic, ask if unclear). Use the same stem for ALL artifacts (`<stem>.clean.srt`, `<stem>.candidates.json`, …). Write `<stem>.source.txt` (original Twitch filenames, sizes, durations). Transcribe once with `mlx-whisper` (Apple Silicon): 16k mono wav, `language='en'`, `condition_on_previous_text=False`. Reuse artifacts if present.
+3. Clean: drop hallucinated lines (lone interjections, subtitle watermark spam, wrong-language text during silence/music). If a stretch is corrupt, re-transcribe just that slice (same flags) and keep it as a per-clip SRT. Output `<name>.srt` + `<name>.tsv` + `<name>.clean.srt`.
+4. Score every segment once across ALL lanes and write `<name>.candidates.json` (top 40 with scores): reaction (die, kill, wait, what, insane, lag, stuck, funny, bug), awkward (awkward, weird, cringe, embarrassing, oops, sorry, uh oh, my bad), teaching (tip, how to, because, actually, remember, never, always, pro tip, works like, did you know), showcase (level, ding, dinged, trainer, learned, new spell, feels, versus, compared to, main, tank, heal, dungeon, overpull, upgrade), plus per-10s RMS energy from the wav. Skip junk segments.
+5. Report: one line per VOD — durations verified, segment count, junk dropped, top 5 candidate timestamps. Do NOT cut clips; that belongs to the downstream skills.
+</invariants>
+
+<transcribe>
+```bash
+ffmpeg -y -v error -i "$VOD" -vn -ac 1 -ar 16000 -c:a pcm_s16le audio.16k.wav
+python3 -c "import mlx_whisper,json; r=mlx_whisper.transcribe('audio.16k.wav',path_or_hf_repo='mlx-community/whisper-large-v3-turbo',language='en',condition_on_previous_text=False); json.dump(r,open('transcript.json','w'),indent=1)"
+```
+Install once: `pip install mlx-whisper`. Caption burn-in downstream needs the `ffmpeg-full` build (stock brew ffmpeg lacks libass). `ffmpeg -ss` needs `HH:MM:SS` past the 59-minute mark.
+</transcribe>
+
+<acceptance_rule>
+Ask the user only when the VOD has no speech, the pair durations mismatch beyond ~2s with no clear master, or every candidate scores low.
+</acceptance_rule>
+</skill>

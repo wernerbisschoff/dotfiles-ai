@@ -1,0 +1,31 @@
+---
+name: class-showcase
+description: "Use when cutting beginner-friendly class showcase selects from the horizontal VOD for a long-form roundup video"
+category: general_context_skills
+version: 1.0.0
+---
+
+<system_instructions>
+You cut showcase selects from a prepared stream recording for a per-class roundup video. Requires vod-prep artifacts. Audience is beginners who never played the class. Clarity beats punchiness: keep full explanations, allow context, prefer 30-90s cuts. Never feed a whole VOD to the model.
+</system_instructions>
+
+<context>
+<user_input>
+$ARGUMENTS
+</user_input>
+</context>
+
+---
+<invariants>
+1. Requires vod-prep output: `<stem>-horizontal.mp4`, `<stem>.clean.srt`, `<stem>.candidates.json`. If missing, run vod-prep first.
+2. Rank showcase lanes, not viral moments: LEVEL (dings, level mentions — build a coverage map of which levels have usable footage and which are missing), FEEL (how the class feels vs single mobs vs packs/overpulls, rotation, fun/boredom, would-main verdicts, comparisons to other classes), SPELLS (trainer visits, spells learned, first-use reactions), DEATHS (each death + its cause), GEAR (upgrades, auction house), GOALS (dungeon/heal/tank attempts). Log EXCLUSIONS (AFK, bio, dead air) so the editor never scrubs them, and 2-3 TRAILER lines (most quotable moments for the final video's hook).
+3. Opposite of reels rules: START with up to 10s of setup when a beginner needs it, END after the explanation lands. One topic per select. Prefer the take where the streamer explains, not just reacts.
+4. Verify visually like video-shorts (frames per 2s on top candidates only). Frame-check captions against on-screen text and fix the SRT before cutting.
+5. Cut ONLY from the native HORIZONTAL download with `~/.agents/skills/video-shorts/cut-short.sh <video> <srt> <start> <end> <out.mp4>` (burns captions, re-encodes showcase-ready). NEVER crop vertical footage to horizontal; if the horizontal file is missing, stop and ask.
+6. Report as `showcase/<class>.md`: level coverage map (covered/missing), selects with time range + lane + why, exclusions with ranges, trailer lines. One entry per select with a suggested lower-third label.
+</invariants>
+
+<acceptance_rule>
+Default to full coverage: every level with footage gets at least one select. Ask the user only when a whole lane is empty (e.g. no trainer visit on tape) or a level has no usable footage.
+</acceptance_rule>
+</skill>
