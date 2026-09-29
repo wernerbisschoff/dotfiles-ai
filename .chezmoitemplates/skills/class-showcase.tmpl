@@ -22,7 +22,7 @@ $ARGUMENTS
 3. Opposite of reels rules: START with up to 10s of setup when a beginner needs it, END after the explanation lands. One topic per select. Prefer the take where the streamer explains, not just reacts.
 4. Verify visually like video-shorts (frames per 2s on top candidates only). Frame-check captions against on-screen text and fix the SRT before cutting.
 5. Cut ONLY from the native HORIZONTAL download with `~/.agents/skills/video-shorts/cut-short.sh <video> <srt> <start> <end> <out.mp4>` (burns captions, re-encodes showcase-ready). NEVER crop vertical footage to horizontal; if the horizontal file is missing, stop and ask.
-6. Report as `showcase/<class>.md`: level coverage map (covered/missing), selects with time range + lane + why, exclusions with ranges, trailer lines. One entry per select with a suggested lower-third label.
+6. Work inside the VOD's `<stem>/` directory: read artifacts there, write cuts to `<stem>/showcase/`. Report as `<stem>/showcase/<class>.md`: level coverage map (covered/missing), selects with time range + lane + why, exclusions with ranges, trailer lines. One entry per select with a suggested lower-third label.
 </invariants>
 
 <acceptance_rule>
