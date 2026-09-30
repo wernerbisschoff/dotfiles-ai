@@ -2,7 +2,7 @@
 name: vod-shorts
 description: "Use when cutting vertical highlights from a stream VOD for Shorts/Reels/TikTok"
 category: general_context_skills
-version: 2.1.0
+version: 2.2.0
 ---
 
 <system_instructions>
@@ -19,8 +19,8 @@ $ARGUMENTS
 <invariants>
 1. Requires vod-prep output: `<stem>-vertical.mp4`, `<stem>.clean.srt`, `<stem>.candidates.json`. If missing, run vod-prep first.
 2. Rank for **AccidentalSidequest** moments: personality and reactions over gameplay. Prefer self-contained story or joke, surprise, death or failure plus reaction, funny chat interaction, strong emotion shift, zero context needed. Also rank AWKWARD (social fails, misreads, cringe — drives comments) and TEACHING (tips, useful discoveries — drives saves/shares; keep the full explanation even if it runs slightly long).
-3. View rules (2026 retention data): the first 2 seconds must hook (reaction, punchline, or question up front, no setup ramble). Prefer 20-45s cuts; end on the payoff, never trail off. One idea per clip. Completion % beats length: a watched-through 30s clip outperforms a half-watched 60s one. Favor loops (end echoes start), replayable details, title-able moments with a promise.
-4. Verify only the top ~10 visually: extract 1 frame per 2s across candidate range, view them, then set exact cut points (20-45s): START on the hook (the reaction, punchline, or question itself — never on setup ramble), END on the payoff. If the hook needs context, add at most 3s of it. Frame-check captions against on-screen text (boss names, player names, zone names) and fix the SRT before cutting. If the stream layout changed, re-measure the gameplay/webcam split (largest adjacent-row luminance jump on one frame) and adjust the cut-script margin so captions sit just below the seam, never over the face. Then add 2s handles each side (START-2s, END+2s) so there is trim room at post.
+3. View rules (2026 retention data): the first 2 seconds must hook (reaction, punchline, or question up front, no setup ramble). Prefer 20-45s cuts; end on the payoff, never trail off. Self-contained jokes, puns, and one-liners may run 10-20s — never pad a finished joke with dead air. One idea per clip. Completion % beats length: a watched-through 30s clip outperforms a half-watched 60s one. Favor loops (end echoes start), replayable details, title-able moments with a promise.
+4. Verify only the top ~10 visually: extract 1 frame per 2s across candidate range, view them, then set exact cut points (10-45s; under 20s only for jokes/puns needing no setup): START on the hook (the reaction, punchline, or question itself — never on setup ramble), END on the payoff. If the hook needs context, add at most 3s of it. Frame-check captions against on-screen text (boss names, player names, zone names) and fix the SRT before cutting. If the stream layout changed, re-measure the gameplay/webcam split (largest adjacent-row luminance jump on one frame) and adjust the cut-script margin so captions sit just below the seam, never over the face. Then add 2s handles each side (START-2s, END+2s) so there is trim room at post.
 5. Cut ONLY from the native VERTICAL download with `~/.agents/skills/vod-shorts/cut-short.sh <video> <srt> <start> <end> <out.mp4>` (burns captions on the gameplay/webcam seam, re-encodes for Shorts). NEVER crop horizontal footage to vertical; if the vertical file is missing, stop and ask.
 6. Work inside the VOD's `<stem>/` directory: read artifacts there, write cuts to `<stem>/shorts/`. Report as `<stem>/shorts/highlights.md`: one entry per clip with time range, reason, lane (funny/awkward/teaching), shorts score, suggested title.
 </invariants>
