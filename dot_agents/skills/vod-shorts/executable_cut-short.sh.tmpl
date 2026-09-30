@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
-# cut-short.sh - cut one clip with burned-in captions (vertical or horizontal).
-# Usage: cut-short.sh <video> <subs.srt> <start> <end> <out.mp4>
+# cut-short.sh - cut one clip (vertical or horizontal), optionally with burned-in captions.
+# Usage: cut-short.sh [--no-subs] <video> <subs.srt> <start> <end> <out.mp4>
 # Times accept seconds or HH:MM:SS. Output keeps source dimensions, H.264 + AAC.
+# --no-subs cuts clean video (showcase default); captions stay default for shorts.
 set -euo pipefail
-if [ "$#" -ne 5 ]; then echo "usage: cut-short.sh <video> <subs.srt> <start> <end> <out.mp4>" >&2; exit 1; fi
-VIDEO=$1; SUBS=$2; START=$3; END=$4; OUT=$5
+NO_SUBS=0
+if [ "${1:-}" = "--no-subs" ]; then NO_SUBS=1; shift; fi
+if [ "$#" -ne 5 ]; then echo "usage: cut-short.sh [--no-subs] <video> <subs.srt> <start> <end> <out.mp4>" >&2; exit 1; fi
 FFMPEG=${FFMPEG:-$(command -v ffmpeg)}
 have_subs() { "$1" -hide_banner -h filter=subtitles 2>&1 | grep -q '^Filter subtitles'; }
-if have_subs "$FFMPEG"; then HAVE_SUBS=1
-elif [ -x /opt/homebrew/opt/ffmpeg-full/bin/ffmpeg ] && have_subs /opt/homebrew/opt/ffmpeg-full/bin/ffmpeg; then FFMPEG=/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg; HAVE_SUBS=1
+if [ "$NO_SUBS" = 1 ]; then HAVE_SUBS=0
+elif have_subs "$FFMPEG"; then HAVE_SUBS=1
 else HAVE_SUBS=0; echo "warn: no subtitles filter; cutting without captions" >&2; fi
 if [ "$HAVE_SUBS" = 1 ]; then
   # input -ss resets output timestamps to zero, so shift subs back by START
