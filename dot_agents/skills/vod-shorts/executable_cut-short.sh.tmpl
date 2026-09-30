@@ -38,7 +38,9 @@ for b in raw:
 open(os.environ['OUT_SRT'], 'w').write('\n\n'.join(out) + '\n')
 print(f"shifted {n} sub lines by -{off}s")
 PY
-  # burn via ASS with explicit geometry from source dimensions: bottom-center, bottom ~11%
+  # burn via ASS with explicit geometry from source dimensions: bottom-center,
+  # anchored just below the gameplay/webcam seam (~26% margin) so captions sit
+  # in the dead band above the head — never over the face or the game UI
   ASS="$SHIFTED.ass"
   "$FFMPEG" -y -v error -i "$SHIFTED" "$ASS"
   FFPROBE=$(dirname "$FFMPEG")/ffprobe; [ -x "$FFPROBE" ] || FFPROBE=$(command -v ffprobe)
@@ -47,7 +49,7 @@ PY
   ASS="$ASS" W="${W:-1080}" H="${H:-1920}" python3 - <<'PY'
 import os, re
 p = os.environ['ASS']; W = int(os.environ['W']); H = int(os.environ['H'])
-fs = max(H*64//1920, 16); mv = H*220//1920
+fs = max(H*64//1920, 16); mv = H*500//1920
 t = open(p).read()
 t = t.replace('PlayResX: 384', f'PlayResX: {W}').replace('PlayResY: 288', f'PlayResY: {H}')
 t = re.sub(r'^Style: .*', f'Style: Default,Helvetica,{fs},&H00FFFFFF,&H000019FF,&H80000000,&H80000000,0,0,0,0,100,100,0,0,1,2,0,2,40,40,{mv},1', t, flags=re.M)
