@@ -7,11 +7,13 @@ set -euo pipefail
 NO_SUBS=0
 if [ "${1:-}" = "--no-subs" ]; then NO_SUBS=1; shift; fi
 if [ "$#" -ne 5 ]; then echo "usage: cut-short.sh [--no-subs] <video> <subs.srt> <start> <end> <out.mp4>" >&2; exit 1; fi
+VIDEO=$1; SUBS=$2; START=$3; END=$4; OUT=$5
+SHIFTED=""
 FFMPEG=${FFMPEG:-$(command -v ffmpeg)}
 have_subs() { "$1" -hide_banner -h filter=subtitles 2>&1 | grep -q '^Filter subtitles'; }
 if [ "$NO_SUBS" = 1 ]; then HAVE_SUBS=0
 elif have_subs "$FFMPEG"; then HAVE_SUBS=1
-else HAVE_SUBS=0; echo "warn: no subtitles filter; cutting without captions" >&2; fi
+else echo "error: captions requested but $FFMPEG has no subtitles filter (no libass); pass --no-subs or set FFMPEG to a build with libass" >&2; exit 1; fi
 if [ "$HAVE_SUBS" = 1 ]; then
   # input -ss resets output timestamps to zero, so shift subs back by START
   SHIFTED=$(mktemp -t shortsubs.XXXXXX.srt)
