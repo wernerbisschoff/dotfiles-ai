@@ -9,7 +9,7 @@ if [ "${1:-}" = "--no-subs" ]; then NO_SUBS=1; shift; fi
 if [ "$#" -ne 5 ]; then echo "usage: cut-short.sh [--no-subs] <video> <subs.srt> <start> <end> <out.mp4>" >&2; exit 1; fi
 VIDEO=$1; SUBS=$2; START=$3; END=$4; OUT=$5
 SHIFTED=""
-FFMPEG=${FFMPEG:-$(command -v ffmpeg)}
+FFMPEG=${FFMPEG:-$(command -v ffmpeg-full 2>/dev/null || ls -d /opt/homebrew/Cellar/ffmpeg-full/*/bin/ffmpeg 2>/dev/null | sort -V | tail -1 || command -v ffmpeg)}
 have_subs() { "$1" -hide_banner -h filter=subtitles 2>&1 | grep -q '^Filter subtitles'; }
 if [ "$NO_SUBS" = 1 ]; then HAVE_SUBS=0
 elif have_subs "$FFMPEG"; then HAVE_SUBS=1
