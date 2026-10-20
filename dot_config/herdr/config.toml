@@ -78,6 +78,12 @@ type = "plugin_action"
 command = "jhochenbaum.hunkdiff.review:staged"
 description = "hunk: review staged changes"
 
+[[keys.command]]
+key = "prefix+ctrl+r"
+type = "plugin_action"
+command = "local.plannotator-review.review"
+description = "review code diff with Plannotator and send findings to agent"
+
 [update]
 version_check = false
 manifest_check = false

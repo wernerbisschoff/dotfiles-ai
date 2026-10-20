@@ -29,3 +29,4 @@ node_modules/
 *.bak
 .zvec-grep/
 .codebase-index/
+__pycache__/
