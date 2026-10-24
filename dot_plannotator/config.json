@@ -1,5 +1,8 @@
 {
-  "autoUpdate": true,
+  "autoUpdate": false,
+  "diffOptions": {
+    "overflow": "wrap"
+  },
   "reviewAnalysis": {
     "semanticDiff": true,
     "callFlow": false

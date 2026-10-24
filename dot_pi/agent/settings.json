@@ -15,7 +15,8 @@
     "npm:pi-commandcode-provider",
     "npm:pi-btw",
     "npm:pi-paster",
-    "npm:pi-subagents"
+    "npm:pi-subagents",
+    "npm:@plannotator/pi-extension"
   ],
   "treeFilterMode": "user-only",
   "hideThinkingBlock": true,

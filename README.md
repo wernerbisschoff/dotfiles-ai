@@ -57,6 +57,24 @@ machine, `run_once_after_install-ai-mise-tools.sh` registers them as global
 `run_once_after_npm-globals.sh`, and `run_once_after_seed-context-docs.sh`
 pre-seeds libref docs.
 
+## Plannotator (custom build)
+
+Binary is built from `wernerbisschoff/plannotator` branch
+`review-live-refresh` (review UI Live toggle), not upstream releases.
+Stock backup: `~/.plannotator/plannotator-stock-0.28.29`.
+`dot_plannotator/config.json` keeps `autoUpdate: false` so the
+custom binary never self-overwrites to upstream.
+
+Rebuild after pulling the branch:
+
+```bash
+cd /tmp/plannotator && bun run build && bun build apps/hook/server/index.ts \
+  --compile --no-compile-autoload-bunfig --target=bun-darwin-arm64 \
+  --define "__CLI_VERSION__=\"<ver>-live.<n>\"" --outfile /tmp/plannotator-custom
+codesign -f -s - /tmp/plannotator-custom  # re-sign or macOS kills it (SIGKILL)
+cp /tmp/plannotator-custom ~/.local/bin/plannotator
+```
+
 ## Layout notes
 
 - `.chezmoitemplates/` is the source of truth: prompts, skills, rules, scripts
