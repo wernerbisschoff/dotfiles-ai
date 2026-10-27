@@ -1,15 +1,8 @@
 {
-  "settings": {
-    "idleTimeout": 10,
-    "notifications": {
-      "info": false
-    }
-  },
   "mcpServers": {
     "zvec_grep": {
       "command": "zg",
-      "args": ["server", "--stdio"],
-      "lifecycle": "lazy-keep-alive"
+      "args": ["server", "--stdio"]
     }
   }
 }

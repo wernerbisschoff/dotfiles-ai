@@ -5,9 +5,8 @@
   },
   "theme": "light",
   "quietStartup": true,
-  "lastChangelogVersion": "0.85.0",
+  "lastChangelogVersion": "1.4.0",
   "packages": [
-    "npm:pi-mcp-adapter",
     "npm:pi-web-access",
     "npm:pi-hashline-edit",
     "npm:pi-lmstudio",
@@ -17,7 +16,8 @@
     "npm:pi-paster",
     "npm:pi-subagents",
     "npm:@plannotator/pi-extension",
-    "npm:billion-context"
+    "npm:billion-context",
+    "npm:pi-lens"
   ],
   "treeFilterMode": "user-only",
   "hideThinkingBlock": true,
