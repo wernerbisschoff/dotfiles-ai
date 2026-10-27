@@ -16,7 +16,8 @@
     "npm:pi-btw",
     "npm:pi-paster",
     "npm:pi-subagents",
-    "npm:@plannotator/pi-extension"
+    "npm:@plannotator/pi-extension",
+    "npm:billion-context"
   ],
   "treeFilterMode": "user-only",
   "hideThinkingBlock": true,
