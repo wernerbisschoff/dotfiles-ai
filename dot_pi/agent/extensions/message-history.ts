@@ -1,9 +1,12 @@
 /**
  * message-history.ts — Persistent up/down arrow message history (per-project)
  *
- * Pi's built-in editor only recalls recently submitted prompts while the
- * editor is empty (or cursor at column 0), and only for the current session.
- * This extension replaces that with a bash-like, persistent history:
+ * Pi's built-in editor forgets prompts when the session ends. This extension
+ * layers bash-like, persistent history onto the live editor instead of
+ * replacing it — the framework supports a single custom editor factory
+ * (last writer wins) and pi-paster registers its own editor after us, so
+ * replacing would either lose to it (no history) or displace it (no image
+ * paste). Wrapping the winner keeps both features:
  *
  *   • Up on the FIRST visual line     → recall an older message
  *   • Down on the LAST visual line    → recall a newer message
@@ -34,6 +37,7 @@ import {
 	CustomEditor,
 	type ExtensionAPI,
 	type ExtensionContext,
+	type ExtensionUIContext,
 	getAgentDir,
 } from "@earendil-works/pi-coding-agent";
 import type { KeybindingsManager } from "@earendil-works/pi-coding-agent";
@@ -144,111 +148,160 @@ async function writeDisk(key: string, entries: string[]): Promise<void> {
 type TUI = ConstructorParameters<typeof CustomEditor>[0];
 type EditorTheme = ConstructorParameters<typeof CustomEditor>[1];
 
+type EditorFactory = NonNullable<ReturnType<ExtensionUIContext["getEditorComponent"]>>;
+type EditorInstance = ReturnType<EditorFactory>;
+
+/** Public Editor surface history recall needs. Present on every bundled editor. */
+interface RecallCaps {
+	getText(): string;
+	setText(text: string): void;
+	getCursor(): { line: number; col: number };
+	getLines(): string[];
+	isShowingAutocomplete(): boolean;
+	handleInput(data: string): void;
+}
+
 interface HistoryState {
 	entries: string[];
 	index: number;
 	draft: string | null;
 }
 
-class MessageHistoryEditor extends CustomEditor {
-	private historyState: HistoryState = { entries: [], index: -1, draft: null };
-	// `keybindings` is private on CustomEditor. Hold our own reference so we can
-	// match user-config-bound keys (e.g. ctrl+p → cursorUp).
-	private kb: KeybindingsManager;
+/** Per-instance history slots, set by attachHistory before input can arrive. */
+interface HistorySlots {
+	__mhBaseHandleInput: (data: string) => void;
+	__mhKb: KeybindingsManager;
+	__mhState: HistoryState;
+}
 
-	constructor(tui: TUI, theme: EditorTheme, kb: KeybindingsManager) {
-		super(tui, theme, kb);
-		this.kb = kb;
-	}
-
+interface HistoryAddon {
 	/** Seed history from disk. Most-recent first. */
-	loadHistory(entries: string[]): void {
-		this.historyState.entries = entries.slice(0, MAX_ENTRIES);
-		this.historyState.index = -1;
-		this.historyState.draft = null;
-	}
-
+	loadHistory(this: LayerThis, entries: string[]): void;
 	/** Push a freshly submitted message into history. */
+	addToHistory(this: LayerThis, text: string): void;
+}
+
+type LayerThis = EditorInstance & RecallCaps & Required<HistorySlots>;
+type LayeredEditor = EditorInstance & RecallCaps & Required<HistorySlots> & HistoryAddon;
+
+/** Set on the prototype layer so a live instance is wrapped at most once. */
+const HISTORY_MARK = "__messageHistoryWrapped";
+
+const historyLayer: HistoryAddon & {
+	captureDraft(this: LayerThis): void;
+	recall(this: LayerThis, direction: -1 | 1): void;
+	cursorOnFirstLine(this: LayerThis): boolean;
+	cursorOnLastLine(this: LayerThis): boolean;
+	handleInput(this: LayerThis, data: string): void;
+} = {
+	loadHistory(entries: string[]): void {
+		this.__mhState = { entries: entries.slice(0, MAX_ENTRIES), index: -1, draft: null };
+	},
+
 	addToHistory(text: string): void {
 		const trimmed = text.trim();
 		if (!trimmed) return;
-		if (this.historyState.entries[0] === trimmed) return; // dedup consecutive
-		this.historyState.entries.unshift(trimmed);
-		if (this.historyState.entries.length > MAX_ENTRIES) {
-			this.historyState.entries.length = MAX_ENTRIES;
+		if (this.__mhState.entries[0] === trimmed) return; // dedup consecutive
+		this.__mhState.entries.unshift(trimmed);
+		if (this.__mhState.entries.length > MAX_ENTRIES) {
+			this.__mhState.entries.length = MAX_ENTRIES;
 		}
 		// Reset browsing — the new entry is now the most recent.
-		this.historyState.index = -1;
-		this.historyState.draft = null;
-	}
+		this.__mhState.index = -1;
+		this.__mhState.draft = null;
+	},
 
-	private captureDraft(): void {
-		if (this.historyState.index !== -1) return; // already browsing
-		this.historyState.draft = this.getText();
-	}
+	captureDraft(): void {
+		if (this.__mhState.index !== -1) return; // already browsing
+		this.__mhState.draft = this.getText();
+	},
 
-	private recall(direction: -1 | 1): void {
-		const { entries } = this.historyState;
+	recall(direction: -1 | 1): void {
+		const { entries } = this.__mhState;
 		if (entries.length === 0) return;
 
 		this.captureDraft();
 
 		// up (-1) → older (index increases), down (+1) → newer (index decreases)
-		const newIndex = this.historyState.index - direction;
+		const newIndex = this.__mhState.index - direction;
 		if (newIndex < -1 || newIndex >= entries.length) return;
 
-		this.historyState.index = newIndex;
+		this.__mhState.index = newIndex;
 
 		if (newIndex === -1) {
 			// Down past newest → restore draft.
-			const draft = this.historyState.draft;
-			this.historyState.draft = null;
+			const draft = this.__mhState.draft;
+			this.__mhState.draft = null;
 			this.setText(draft ?? "");
 			return;
 		}
 
 		this.setText(entries[newIndex] ?? "");
-	}
+	},
 
-	override handleInput(data: string): void {
+	cursorOnFirstLine(): boolean {
+		return this.getCursor().line === 0;
+	},
+
+	cursorOnLastLine(): boolean {
+		const lines = this.getLines();
+		return this.getCursor().line >= lines.length - 1;
+	},
+
+	handleInput(data: string): void {
 		// When an autocomplete dropdown is open (e.g. the @ file completer),
 		// up/down must navigate the suggestion list, not recall history. Delegate
 		// all input to the base editor, which routes arrows to the list first.
 		if (this.isShowingAutocomplete()) {
-			super.handleInput(data);
+			this.__mhBaseHandleInput(data);
 			return;
 		}
 
-		if (this.kb.matches(data, "tui.editor.cursorUp")) {
+		if (this.__mhKb.matches(data, "tui.editor.cursorUp")) {
 			if (this.cursorOnFirstLine()) {
 				this.recall(-1);
 				return;
 			}
 		}
 
-		if (this.kb.matches(data, "tui.editor.cursorDown")) {
-			if (this.historyState.index > -1 && this.cursorOnLastLine()) {
+		if (this.__mhKb.matches(data, "tui.editor.cursorDown")) {
+			if (this.__mhState.index > -1 && this.cursorOnLastLine()) {
 				this.recall(1);
 				return;
 			}
 		}
 
-		super.handleInput(data);
-	}
+		this.__mhBaseHandleInput(data);
+	},
+};
 
-	// Cursor-position helpers (the base Editor's same-named methods are private
-	// and we re-implement here using only the public getCursor/getLines API).
-	// Using logical-line index is sufficient: the user is on the first logical
-	// line whenever they're at the top of any wrapped paragraph, and the
-	// built-in editor applies the same heuristic for history navigation.
-	private cursorOnFirstLine(): boolean {
-		return this.getCursor().line === 0;
+/**
+ * Layer history recall onto a live editor instance. The instance keeps its
+ * own prototype chain (pi-paster's image paste, completions, keybindings)
+ * and gains the history methods; re-running on the same instance only
+ * refreshes its entries.
+ */
+function attachHistory(
+	editor: EditorInstance,
+	kb: KeybindingsManager,
+	entries: string[],
+): LayeredEditor {
+	const target = editor as LayeredEditor;
+	const proto = Object.getPrototypeOf(editor) as {
+		handleInput?: (this: RecallCaps, data: string) => void;
+		[HISTORY_MARK]?: true;
+	};
+	if (!proto[HISTORY_MARK]) {
+		const baseHandleInput = proto.handleInput?.bind(editor) ?? (() => {});
+		const layer = Object.create(proto);
+		Object.assign(layer, historyLayer);
+		layer[HISTORY_MARK] = true;
+		Object.setPrototypeOf(editor, layer);
+		target.__mhBaseHandleInput = baseHandleInput;
 	}
-
-	private cursorOnLastLine(): boolean {
-		const lines = this.getLines();
-		return this.getCursor().line >= lines.length - 1;
-	}
+	target.__mhKb = kb;
+	target.loadHistory(entries);
+	return target;
 }
 
 // ─── Persistence controller ───────────────────────────────────────────────────
@@ -272,6 +325,13 @@ interface PersistenceState {
  * the user actually quits.
  */
 const FLUSH_DEBOUNCE_MS = 250;
+
+/** Re-check cadence while late editor installs (e.g. pi-paster) settle. */
+const SETTLE_POLL_MS = 5000;
+/** Stop re-asserting after this many stable polls (~15s). */
+const SETTLE_STABLE_POLLS = 3;
+/** Give up re-asserting after this many polls (~90s). */
+const SETTLE_MAX_POLLS = 18;
 
 function makePersistence(): PersistenceState {
 	return { key: null, entries: [], unsaved: [], dirty: false, flushTimer: null };
@@ -302,7 +362,10 @@ function extractText(content: string | unknown): string {
 
 export default function (pi: ExtensionAPI): void {
 	const persistence = makePersistence();
-	let activeEditor: MessageHistoryEditor | null = null;
+	let activeEditor: LayeredEditor | null = null;
+	let latestFactory: EditorFactory | null = null;
+	let settleTimer: ReturnType<typeof setInterval> | null = null;
+	let epoch = 0;
 
 	/**
 	 * Merge unsaved entries over a fresh disk read, then write. Starting from
@@ -344,21 +407,61 @@ export default function (pi: ExtensionAPI): void {
 		return flushToDisk();
 	};
 
-	const makeEditor = (
-		tui: TUI,
-		theme: EditorTheme,
-		kb: KeybindingsManager,
-	): MessageHistoryEditor => {
-		const editor = new MessageHistoryEditor(tui, theme, kb);
-		activeEditor = editor;
-		// Seed editor's in-memory view with the cached entries. The editor
-		// holds its own copy so it can mutate (rotate the index) freely.
-		editor.loadHistory(persistence.entries);
-		return editor;
+	/**
+	 * Install the history layer onto the live editor. Wraps whatever factory
+	 * is currently registered (pi-paster's, if it already ran) so no feature
+	 * is lost, and falls back to a default editor when none is registered.
+	 */
+	const install = (ctx: ExtensionContext): void => {
+		const prev = ctx.ui.getEditorComponent();
+		const base = prev && prev !== latestFactory ? prev : undefined;
+		const makeEditor: EditorFactory = (tui, theme, kb) => {
+			const inner = base ? base(tui, theme, kb) : new CustomEditor(tui, theme, kb);
+			activeEditor = attachHistory(inner, kb, persistence.entries);
+			return activeEditor;
+		};
+		latestFactory = makeEditor;
+		ctx.ui.setEditorComponent(makeEditor);
+	};
+
+	const stopSettling = (): void => {
+		if (settleTimer) {
+			clearInterval(settleTimer);
+			settleTimer = null;
+		}
+	};
+
+	/**
+	 * Late installers replace the factory — and with it, history recall.
+	 * Re-layer onto the winner until the registration settles.
+	 */
+	const watchSettling = (ctx: ExtensionContext, runEpoch: number): void => {
+		stopSettling();
+		let stable = 0;
+		let polls = 0;
+		settleTimer = setInterval(() => {
+			try {
+				if (runEpoch !== epoch) return stopSettling();
+				polls += 1;
+				if (polls > SETTLE_MAX_POLLS) return stopSettling();
+				if (ctx.ui.getEditorComponent() === latestFactory) {
+					stable += 1;
+					if (stable >= SETTLE_STABLE_POLLS) stopSettling();
+					return;
+				}
+				stable = 0;
+				install(ctx);
+			} catch {
+				stopSettling();
+			}
+		}, SETTLE_POLL_MS);
+		settleTimer.unref?.();
 	};
 
 	pi.on("session_start", async (_event, ctx: ExtensionContext) => {
 		if (ctx.mode !== "tui") return;
+		epoch += 1;
+		stopSettling();
 
 		const key = await projectKey(ctx.cwd);
 		persistence.key = key;
@@ -368,11 +471,13 @@ export default function (pi: ExtensionAPI): void {
 		// Read existing history. Always allowed — every session reads and writes.
 		persistence.entries = await readDisk(key);
 
-		ctx.ui.setEditorComponent(makeEditor);
+		install(ctx);
+		watchSettling(ctx, epoch);
 	});
 
 	// Persist any pending writes on shutdown.
 	pi.on("session_shutdown", async () => {
+		stopSettling();
 		await flushNow();
 	});
 
