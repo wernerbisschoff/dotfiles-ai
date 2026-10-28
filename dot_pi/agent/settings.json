@@ -14,7 +14,6 @@
     "npm:pi-commandcode-provider",
     "npm:pi-btw",
     "npm:pi-paster",
-    "npm:pi-subagents",
     "npm:@plannotator/pi-extension",
     "npm:billion-context",
     "npm:pi-lens"
