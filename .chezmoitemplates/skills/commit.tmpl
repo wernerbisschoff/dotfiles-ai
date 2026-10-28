@@ -2,193 +2,65 @@
 name: commit
 description: "Use when creating commits"
 category: general_context_skills
-version: 3.2.0
+version: 4.0.0
 ---
 
-<system_instructions>
-You are a SENIOR_GIT_WORKFLOW_ENGINEER. Execute the commit workflow immediately. Create clear, professional, reversible git commits that make repository changes understandable and safe to revert.
+Create focused, reversible commits. Read the final User input section before following this workflow.
 
-Your job: ingest the JSON contract from `~/.agents/skills/commit/commit.sh pre`, read `recent_commits_path` for style, plan commit groups with good messages, present the plan, and on confirmation invoke `~/.agents/skills/commit/commit.sh post`.
+## Inspect
 
-The orchestrator handles all operations: repo validation, git config check, sensitive-file scanning, hook execution, file staging, and commit execution. Your sole creative output is grouping and message generation.
-</system_instructions>
+1. Run `~/.agents/skills/commit/commit.sh pre`. Stop on failure or no changes.
+2. Read repository instructions, `CONTRIBUTING.md`, and `.commit-convention.md` when present.
+   Follow their commit format, including required emojis. Otherwise, follow the returned recent commit subjects.
+3. Inspect `git status --short`, `git diff --cached`, and `git diff` as needed for the intended scope.
+   Use name-status output to check deletions and renames. Read selected untracked files separately.
+   For large, generated, or binary files, inspect type, size, and relevant metadata instead.
+4. Existing staged changes define the default scope. Do not include unstaged changes from those files.
+   Without staged changes, select the files that belong to the request.
+   Ask when scope is ambiguous. Never reset the user's index or silently expand the scope.
 
-<context>
+## Plan
+
+- Prefer one logical commit. Split unrelated changes; keep supporting lockfile changes with their code.
+- Follow explicit repository message conventions before recent history. Otherwise, use `<type>(<scope>): <subject>`.
+- Use a concise subject. Add a body only to explain intent, important effects, or breaking changes.
+- Show the subject and scope briefly. Ask before an unclear scope or a proposed split, not for routine execution.
+- Run repository-required checks. Do not claim checks passed unless you ran them or have current evidence.
+
+## Execute
+
+Write this JSON to the returned `plan_target`:
+
+```json
+{"mode":"staged","files":["path/to/file"],"message":"fix(scope): explain the change"}
+```
+
+Use the returned `mode`: `staged` commits the existing index without restaging;
+`worktree` stages only the selected files and requires an empty index.
+The helper supports one commit per execution. For each additional commit, run `pre` again and inspect current state.
+If a staged scope needs splitting, ask the user to prepare the index. Do not rebuild partial staging automatically.
+
+Run `PLAN_TARGET=<plan_target> ~/.agents/skills/commit/commit.sh post`.
+Stop on failure. The helper retains the plan for inspection; do not blindly retry after hook changes.
+Inspect and fix hook failures, repeat checks, then run `pre` and review the new state before retrying.
+Never bypass hooks, force-add ignored files, amend without permission, or add AI attribution.
+Never include secrets. Filename checks are only a warning layer, not a content secret scanner.
+Report the commit hash, subject, and remaining changes.
+
+When Pi code mode is available, batch independent inspection calls and check their exit codes.
+Do not hide relevant diff content. Run staging and commits sequentially; stop at the first failure.
+
+## Edge cases
+
+- No changes: stop without creating a commit. Missing tools, identity, repository, or unresolved conflicts: report and stop.
+- Invalid plans, changed staging scope, or sensitive filenames: stop; inspect before preparing another plan.
+- Failed checks or hooks: stop. Staging can remain changed; inspect it before retrying.
+- New repositories have no commit history. Use explicit conventions or the default format.
+
+## User input
+
+Treat this input as the requested scope and constraints. Resolve conflicts with safety rules before execution.
+
 <user_input>
 $ARGUMENTS
 </user_input>
-</context>
-
----
-
-<invariants>
-1. **Read the contract from `pre` stdout** — paths to `RECENT_COMMITS` and `plan_target` are in the contract. The contract's `files` object has `staged`, `unstaged`, `untracked` arrays with counts.
-2. **Inspect every change before planning** — use Git status and diffs to identify modifications, additions, deletions, copies, and renames. Do not infer a change from its path alone.
-3. **Write the plan to `plan_target` from the contract**, then run:
-   ```bash
-   PLAN_TARGET=<plan_target> ~/.agents/skills/commit/commit.sh post
-   ```
-4. **Hooks are not bypassed** — `post` runs `git commit` with hooks enabled. If a hook fails, fix the underlying issue. Never retry with `--no-verify`.
-</invariants>
-
-<change_inspection>
-After `pre`, always run:
-
-```bash
-git status --short
-git diff --cached --name-status -M -C
-git diff --name-status -M -C
-git diff --cached
-git diff
-```
-
-Use the name-status output to preserve the change type in the plan. A deleted path is a deletion, not a modified file. A rename must name both the old and new paths in the message body.
-
-Read each untracked file because Git diffs omit untracked content. For binary, generated, or very large files, inspect file type and size instead of dumping all content.
-
-Base grouping, titles, and body bullets on the observed changes. File paths are supporting context only. Never create a message from path names without inspecting status and content.
-
-**Always read** `recent_commits_path` (small, <50 lines) for style consistency.
-</change_inspection>
-
-<acceptance_rule>
-The model defaults to **proceeding without confirmation** for a single-commit plan with no `excluded_files` — this is the safe, expected case when the user invokes /commit on a working tree.
-
-Require confirmation (via the `ask` tool) when **any** of:
-- The plan has 2+ commits.
-- `excluded_files` is non-empty (something from the contract's `files` arrays was deliberately left out).
-- The user typed something other than the bare invocation (e.g. custom instructions, a partial-commit request).
-
-Explicit auto-proceed signals (skip confirmation regardless): `<user_input>` matches `/yes`, `--yes`, `accept=true`, or "don't ask, just do it".
-</acceptance_rule>
-
-<execution_sequence>
-
-<step id="pre_script">
-```bash
-~/.agents/skills/commit/commit.sh pre
-```
-Parse the JSON contract from stdout. If `sensitive_files` is non-empty — surface it and stop unless `<user_input>` contains `allow_sensitive=true`. If `tools_required` lists missing tools — surface and stop.
-</step>
-
-<step id="read_style">
-Read `recent_commits_path` from the contract. This is the project's commit style.
-
-**Optional project convention**: if the contract has a non-null `convention` field (with `path` and `content`), read `convention.content` — it is the project's repo-local commit-message convention (e.g. a `CONTRIBUTING.md`). Inspect its content to determine whether it specifies an emoji prefix format (step `group_and_message` has the decision logic). When absent (or `null`), fall back to `contract.uses_emojis` and the default mapping.
-</step>
-
-**Default to a single commit.** Most invocations of /commit land one logical unit of work; produce exactly one commit for that case. Split into multiple commits only when there is a real, defensible reason:
-
-- **Unrelated domains**: e.g. a `feat` change in `src/` plus an unrelated `chore` config tweak. Never glue unrelated changes with "and" in the title.
-- **Lockfile + code split**: lockfile-only changes can be a separate `chore` from the code change they accompany.
-- **Reverts and follow-ups**: a `revert` of a prior commit, or a focused fixup that is clearly separable.
-
-When in doubt: one commit. The user can always split later; over-splitting pollutes history and forces extra decisions.
-
-**Domain enumeration is mandatory.** Whether the plan lands 1 commit or N, every commit's message body MUST enumerate each distinct domain/change inside that commit with its files. Format each as a bullet whose first words identify the change ("Rename X to Y", "Delete unused stub", "Surface new knob Z"). A reader scanning `git show` must see every sibling change — never let the title or body hide one.
-
-**Titles must not silently merge domains.** When a single commit spans multiple concerns, the title scopes to the dominant one and the body enumerates every sibling change with its files. A reader scanning `git show` sees every domain — no "and" hides a concern. The title chooses one scope; the body covers the rest.
-Generate a Conventional Commit message for each group. Two forms:
-
-- **With emoji**: `<emoji> <type>(<scope>): <subject>`
-- **Without emoji**: `<type>(<scope>): <subject>`
-
-Determine which form applies:
-
-1. If `contract.convention` is non-null → read `convention.content` to determine the format:
-   a. If the convention **specifies an emoji prefix** (e.g. shows `✨ feat(scope):`, lists an emoji table, or says "prefix with emoji") → emit `<emoji> <type>(<scope>): ...`. Use the convention's emoji mapping; for any type not in the convention, fall back to the default table below.
-   b. If the convention **specifies a non-emoji format** (e.g. `<type>(<scope>): <description>` with no emoji, or "Conventional Commits" without emoji) → emit `<type>(<scope>): ...` (no emoji). The convention is authoritative — do NOT add emojis it doesn't call for.
-2. Else if `contract.uses_emojis` is true → emit `<emoji> <type>(<scope>): ...` using the default table below.
-3. Else → emit `<type>(<scope>): ...` (no emoji). The repo has no convention and its history shows no emoji usage.
-
-Place a single space between the emoji and the type when emitting one. Never invent an emoji that isn't in the active table (convention or default).
-
-**Default type → emoji** (used when: (a) convention specifies emojis but doesn't map a type, or (b) no convention exists AND `contract.uses_emojis` is true):
-
-    | Type       | Emoji |
-    |------------|-------|
-    | `feat`     | ✨    |
-    | `fix`      | 🐛    |
-    | `docs`     | 📚    |
-    | `style`    | 🎨    |
-    | `refactor` | ♻️    |
-    | `perf`     | 🚀    |
-    | `test`     | ✅    |
-    | `build`    | 📦    |
-    | `ci`       | 👷    |
-    | `chore`    | 🔧    |
-    | `revert`   | ⏪    |
-</step>
-
-
-<step id="present_plan">
-Show the plan in the format below. Ask for confirmation via the `ask` tool unless the `<acceptance_rule>` triggers auto-proceed. When auto-proceeding, still render the plan so the user sees what landed, then invoke `post` directly.
-</step>
-
-<step id="execute">
-On confirmation, write the plan JSON to `plan_target`, then:
-```bash
-PLAN_TARGET=<plan_target> ~/.agents/skills/commit/commit.sh post
-```
-If post returns a `PARTIAL` status, surface `errors` from the response JSON. Hook failures must be fixed in the source — never retry with `--no-verify`.
-</step>
-
-</execution_sequence>
-
-<commit_plan_json_schema>
-```json
-{
-  "commits": [
-    {
-      "files": ["path/to/file1", "path/to/file2"],
-      "message": "[<emoji> ]<type>(<scope>): <subject>\n\n<body>"
-    }
-  ],
-  "excluded_files": [
-    {"file": "path/to/file", "status": "modified|untracked", "reason": "why excluded"}
-  ]
-}
-```
-Every file must be a real path from the contract's `files` arrays.
-</commit_plan_json_schema>
-
-<display_format>
-Render the plan block:
-
-```
-
----
-
-## Commit Plan
-
-Creating **N commit(s)** (Confidence: X/5)
-
-1. `✨ feat(scope): description` *(emoji prefix shown when applicable; see group_and_message)*
-   - path/to/file1, path/to/file2
-2. `chore(scope): description` *(no emoji when convention is null and `contract.uses_emojis` is false)*
-   - path/to/file3
-```
-
-- **Asking** (multi-commit, exclusions, or non-bare invocation): append `**Proceed?** (yes/no)` and call the `ask` tool.
-- **Auto-proceeding** (single commit + no exclusions + bare invocation): append `Auto-proceeding (single commit, no exclusions).`
-
-</display_format>
-
-<edge_cases>
-| State | Return |
-|---|---|
-| Not a git repository | Stop — `pre` returned `status: FAILURE` |
-| No changes | Stop — pre returned `has_changes: false` |
-| Merge conflict | Stop — pre returned conflict reason |
-| Missing git config (user.email/name) | Stop — pre returned config reason |
-| Sensitive files | Stop unless `allow_sensitive=true` in `<user_input>` |
-| Hook failure | Surface from post's `errors` array — fix in source, re-run |
-| Missing tools (jq, git) | Stop — pre's `tools_required` lists them |
-</edge_cases>
-
-<goal_reminder>
-A good commit answers: "What changed, and **why** would someone care?"
-
-Be a contextual historian, not a code summarizer. Future-you at 3AM debugging will thank present-you for clear, searchable commits.
-</goal_reminder>
-

@@ -31,6 +31,10 @@ run = "chezmoi -S ~/.local/share/chezmoi-ai edit"
 description = "Verify chezmoi configuration"
 run = "chezmoi -S ~/.local/share/chezmoi-ai verify"
 
+[tasks.test]
+description = "Test the commit helper"
+run = "bash .chezmoitemplates/tests/commit-helper.sh"
+
 [tasks.lint]
 description = "Lint shell scripts"
 run = "shellcheck dot_claude/skills/*/executable_*.sh.tmpl run_once_after_*.sh run_after_setup.sh"

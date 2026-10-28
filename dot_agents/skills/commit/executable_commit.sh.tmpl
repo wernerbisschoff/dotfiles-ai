@@ -1,467 +1,75 @@
 #!/usr/bin/env bash
-#
-# commit.sh - Orchestrator for the /commit workflow
-#
-# Usage:
-#   commit.sh pre [--fix]
-#   commit.sh post
-#
-# The 'pre' subcommand emits a JSON contract to stdout. The 'post'
-# subcommand reads the commit plan JSON written by the AI, stages
-# files, and executes commits.
-#
-# Exit codes:
-#   0   Success
-#   1   Invalid arguments
-#   2   Pre-flight check failed (not a repo, merge conflict, missing config)
-#   5   Safety scan failed (sensitive files)
-#   6   Commit execution failed
-#
+# Usage: commit.sh pre; PLAN_TARGET=<plan.json> commit.sh post
+# pre reports current paths, default scope, recent subjects, and a temporary plan path.
+# post accepts one {mode, files, message} plan and validates it against current paths.
+# Staged mode commits the entire index unchanged to preserve partial staging.
+# Worktree mode requires an empty index and stages only selected literal paths.
+# One commit per call prevents later groups from inheriting a failed group's index.
+# Git runs hooks normally. Failures stop execution; staging and plan files remain.
+# Plans are not content snapshots. The agent must review changes before execution.
+# Filename checks do not detect secrets inside files. Temporary plans require manual cleanup.
 set -euo pipefail
 
-# ── Color constants ───────────────────────────────────────────────────────
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
+fail() { printf '%s\n' "$*" >&2; exit 1; }
+for tool in git jq; do
+    command -v "$tool" >/dev/null || fail "Missing tool: $tool"
+done
+root=$(git rev-parse --show-toplevel) || fail "Not a git repository"
+cd "$root"
+git config user.name >/dev/null || fail "Missing git user.name"
+git config user.email >/dev/null || fail "Missing git user.email"
+[[ -z "$(git ls-files -u)" ]] || fail "Resolve merge conflicts first"
 
-# ── Logging (stderr only) ─────────────────────────────────────────────────
-log_info() { echo -e "${BLUE}[INFO]${NC}  $*" >&2; }
-log_ok()   { echo -e "${GREEN}[OK]${NC}    $*" >&2; }
-log_warn() { echo -e "${YELLOW}[WARN]${NC}  $*" >&2; }
-log_err()  { echo -e "${RED}[ERROR]${NC} $*" >&2; }
+paths_json() { jq -Rs 'split("\u0000") | map(select(length > 0)) | sort | unique'; }
+staged=$(git diff --cached --no-renames --name-only -z | paths_json)
+unstaged=$(git diff --no-renames --name-only -z | paths_json)
+untracked=$(git ls-files --others --exclude-standard -z | paths_json)
+mode=worktree
+[[ "$staged" == '[]' ]] || mode=staged
 
-# ── XDG-compliant temp directory creation ─────────────────────────────────
-# Prefers XDG_STATE_HOME/agent-artifacts (Claude/Opencode pre-approved).
-# Fallback chain: XDG_STATE_HOME → HOME/.local/state → TMPDIR → /tmp → /dev/shm
-create_temp_dir() {
-    local prefix="${1:-tmp}"
-    local base=""
-    if [ -n "${XDG_STATE_HOME:-}" ]; then
-        base="$XDG_STATE_HOME/agent-artifacts"
-        mkdir -p "$base" 2>/dev/null || true
-        if temp_dir=$(mktemp -d "$base/${prefix}.XXXXXX" 2>/dev/null); then
-            echo "$temp_dir"; return 0
-        fi
-    fi
-    if [ -n "${HOME:-}" ]; then
-        base="${HOME}/.local/state/agent-artifacts"
-        mkdir -p "$base" 2>/dev/null || true
-        if temp_dir=$(mktemp -d "$base/${prefix}.XXXXXX" 2>/dev/null); then
-            echo "$temp_dir"; return 0
-        fi
-    fi
-    if [ -n "${TMPDIR:-}" ]; then
-        base="$TMPDIR"
-        mkdir -p "$base" 2>/dev/null || true
-        if temp_dir=$(mktemp -d "$base/${prefix}.XXXXXX" 2>/dev/null); then
-            echo "$temp_dir"; return 0
-        fi
-    fi
-    base="/tmp"
-    mkdir -p "$base" 2>/dev/null || true
-    if temp_dir=$(mktemp -d "$base/${prefix}.XXXXXX" 2>/dev/null); then
-        echo "$temp_dir"; return 0
-    fi
-    if [ -d "/dev/shm" ]; then
-        if temp_dir=$(mktemp -d "/dev/shm/${prefix}.XXXXXX" 2>/dev/null); then
-            echo "$temp_dir"; return 0
-        fi
-    fi
-    log_err "Cannot create temp directory (all locations unwritable)"
-    return 1
-}
-
-# ── Git state gathering (NUL-safe) ────────────────────────────────────────
-# Outputs a JSON object with categorized file arrays.
-# Uses `git -z` (NUL separator) so paths with spaces survive.
-gather_git_state() {
-    if ! git rev-parse --show-toplevel >/dev/null 2>&1; then
-        log_err "Not a git repository"
-        return 1
-    fi
-    if ! command -v jq >/dev/null 2>&1; then
-        log_err "gather_git_state requires jq for JSON contract emission"
-        return 1
-    fi
-
-    local staged unstaged untracked
-    staged=$(git diff --cached --name-only -z 2>/dev/null | jq -Rs 'split("\u0000") | map(select(length > 0))')
-    unstaged=$(git diff --name-only -z 2>/dev/null | jq -Rs 'split("\u0000") | map(select(length > 0))')
-    untracked=$(git ls-files --others --exclude-standard -z 2>/dev/null | jq -Rs 'split("\u0000") | map(select(length > 0))')
-
-    jq -n \
-        --argjson staged "$staged" \
-        --argjson unstaged "$unstaged" \
-        --argjson untracked "$untracked" \
-        '{
-            staged: $staged,
-            unstaged: $unstaged,
-            untracked: $untracked,
-            staged_count: ($staged | length),
-            unstaged_count: ($unstaged | length),
-            untracked_count: ($untracked | length)
-        }'
-}
-
-SENSITIVE_PATTERNS='\.env$|\.pem$|\.p12$|\.npmrc$|\.terraform$|id_rsa|\.key$'
-
-# ── Pre: gather git state, validate, emit contract ───────────────────────
-cmd_pre() {
-    local run_mise_fix=0
-    if [[ "${1:-}" == "--fix" || "${COMMIT_RUN_FIX:-}" == "1" ]]; then
-        run_mise_fix=1
-    fi
-
-    # Validate repo
-    local repo_root
-    repo_root=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
-    if [[ -z "$repo_root" ]]; then
-        echo '{"status":"FAILURE","reason":"Not a git repository"}'
-        exit 2
-    fi
-
-    # Validate git user config
-    local git_email git_name
-    git_email=$(git config user.email 2>/dev/null || echo "")
-    git_name=$(git config user.name 2>/dev/null || echo "")
-    if [[ -z "$git_email" || -z "$git_name" ]]; then
-        echo '{"status":"FAILURE","reason":"git user.email and/or user.name not configured"}'
-        exit 2
-    fi
-
-    # Check for merge conflicts (grep for actual conflict markers,
-    # not whitespace warnings like "new blank line at EOF").
-    local staged_conflicts
-    staged_conflicts=$(git diff --check --cached 2>&1 | grep -ci "conflict" || true)
-    if [[ "$staged_conflicts" -gt 0 ]]; then
-        echo '{"status":"FAILURE","reason":"Merge conflict detected in staged changes"}'
-        exit 2
-    fi
-    local conflict_count
-    conflict_count=$(git diff --check 2>&1 | grep -ci "conflict" || true)
-    if [[ "$conflict_count" -gt 0 ]]; then
-        echo '{"status":"FAILURE","reason":"Merge conflict detected in working tree"}'
-        exit 2
-    fi
-
-    local branch
-    branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
-
-    # Optional mise fix (opt-in via --fix flag or COMMIT_RUN_FIX=1)
-    if [[ "$run_mise_fix" -eq 1 ]]; then
-        log_info "Running mise run fix..."
-        if ! mise run fix 2>/dev/null; then
-            log_warn "mise run fix failed (non-fatal)"
-        fi
-    fi
-
-    # Gather git state
-    local git_state
-    git_state=$(gather_git_state) || exit 2
-
-    local staged_count unstaged_count untracked_count
-    staged_count=$(printf '%s' "$git_state" | jq -r '.staged_count')
-    unstaged_count=$(printf '%s' "$git_state" | jq -r '.unstaged_count')
-    untracked_count=$(printf '%s' "$git_state" | jq -r '.untracked_count')
-
-    # No changes guard
-    if [[ "$staged_count" -eq 0 && "$unstaged_count" -eq 0 && "$untracked_count" -eq 0 ]]; then
-        echo '{"status":"SUCCESS","has_changes":false,"reason":"No changes to commit"}'
-        exit 0
-    fi
-
-    # Safety scan: combine all file lists, grep for sensitive patterns.
-    # Use newline separator (paths with spaces are preserved because each
-    # file is a single jq -r .[] line, not word-split).
-    local all_files sensitive_files
-    all_files=$(printf '%s' "$git_state" | jq -r '[.staged[], .unstaged[], .untracked[]] | .[]' 2>/dev/null || true)
-    sensitive_files="[]"
-    if [[ -n "$all_files" ]]; then
-        local sf
-        sf=$(printf '%s\n' "$all_files" | grep -E "$SENSITIVE_PATTERNS" 2>/dev/null || true)
-        if [[ -n "$sf" ]]; then
-            sensitive_files=$(printf '%s\n' "$sf" | jq -R . | jq -s .)
-            log_err "Sensitive files detected:"
-            echo "$sf" >&2
-        fi
-    fi
-
-    # Create temp dir for artifacts (cleaned up by post on exit)
-    local temp_dir
-    temp_dir=$(create_temp_dir "commit-phase") || exit 2
-    # Marker file: post verifies this exists before auto-cleanup.
-    # Prevents `rm -rf` of an arbitrary path if PLAN_TARGET is mis-set.
-    touch "$temp_dir/.commit-phase-marker"
-    local recent_commits_path="$temp_dir/RECENT_COMMITS"
-    local plan_target="$temp_dir/commit-plan.json"
-
-
-    # Write recent commits (for style context)
-    git --no-pager log --oneline --decorate -10 >"$recent_commits_path" 2>/dev/null || echo "" >"$recent_commits_path"
-
-    # Detect emoji usage in recent commits. Authoritative only when
-    # convention is null — CONTRIBUTING.md / .commit-convention.md overrides
-    # history-based inference. Uses perl's Unicode Extended_Pictographic
-    # property for cross-platform UTF-8 matching (BSD grep on macOS lacks
-    # -P). Extended_Pictographic matches only true emoji glyphs; the
-    # broader \p{Emoji} property also matches ASCII colon (used in emoji
-    # shortcodes like `:smile:`), which false-positives on plain prose.
-    local uses_emojis=false
-    if [[ -s "$recent_commits_path" ]] \
-        && [[ "$(perl -CSD -ne 'if (/\p{Extended_Pictographic}/) { print "yes"; exit 0; }' "$recent_commits_path" 2>/dev/null)" == "yes" ]]; then
-        uses_emojis=true
-    fi
-
-    # Detect project-level commit convention (optional, repo-local override).
-    # Order: CONTRIBUTING.md → .commit-convention.md. Absent in either → no override
-    # (other repos are unaffected by this skill's defaults). The emitted `convention`
-    # field is null when no convention file is found.
-    local convention_obj="null"
-    if [[ -f "$repo_root/CONTRIBUTING.md" ]]; then
-        convention_obj=$(jq -n \
-            --arg path "CONTRIBUTING.md" \
-            --rawfile content "$repo_root/CONTRIBUTING.md" \
-            '{path: $path, content: $content}')
-    elif [[ -f "$repo_root/.commit-convention.md" ]]; then
-        convention_obj=$(jq -n \
-            --arg path ".commit-convention.md" \
-            --rawfile content "$repo_root/.commit-convention.md" \
-            '{path: $path, content: $content}')
-    fi
-
-    # Emit contract.
-    # Lean shape: drop redundant fields the model never reads
-    # (phase, status, repo_root, timestamp, nested dup counts,
-    # stat_lines, diff paths/sizes — diffs are read on-demand via
-    # `git diff -- <path>` from the model when needed).
-    jq -n \
-        --arg branch "$branch" \
-        --argjson files "$git_state" \
-        --arg recent_commits_path "$recent_commits_path" \
-        --arg plan_target "$plan_target" \
-        --argjson sensitive_files "$sensitive_files" \
-        --argjson convention "$convention_obj" \
-        --argjson uses_emojis "$uses_emojis" \
-        '{
-            branch: $branch,
-            files: $files,
-            recent_commits_path: $recent_commits_path,
-            plan_target: $plan_target,
-            sensitive_files: $sensitive_files,
-            tools_required: ["git", "jq"],
-            uses_emojis: $uses_emojis,
-            convention: $convention
-        }'
-    log_ok "Pre-phase complete. Ready for commit planning."
-}
-
-# ── Post: read plan, execute commits ──────────────────────────────────────
-cmd_post() {
-    local plan_target="${PLAN_TARGET:-}"
-
-    if [[ -z "$plan_target" || ! -f "$plan_target" ]]; then
-        log_err "PLAN_TARGET env var not set or file missing"
-        log_err "The AI must write the commit plan to plan_target before running post"
-        exit 5
-    fi
-
-    # Clean up the temp dir when post exits (success or failure).
-    # Safety: only trap on dirs created by pre (verified via marker file).
-    # This prevents accidentally `rm -rf`ing an arbitrary path if PLAN_TARGET
-    # is mis-set. pre writes the marker; post verifies and traps.
-    local temp_dir
-    temp_dir=$(dirname "$plan_target")
-    if [[ -f "$temp_dir/.commit-phase-marker" ]]; then
-        # Use a non-local var so the trap survives the function return.
-        COMMIT_PHASE_CLEANUP_DIR="$temp_dir"
-        trap 'rm -rf "$COMMIT_PHASE_CLEANUP_DIR"' EXIT
-    else
-        log_warn "No marker at $temp_dir — skipping auto-cleanup (PLAN_TARGET not from pre?)"
-    fi
-
-    log_info "Reading commit plan from $plan_target"
-
-    local plan_json
-    plan_json=$(cat "$plan_target")
-
-    local commit_count
-    commit_count=$(printf '%s' "$plan_json" | jq -r '.commits | length // 0')
-
-    if [[ "$commit_count" -eq 0 ]]; then
-        log_err "Commit plan has no commits"
-        exit 6
-    fi
-
-    log_info "Planning to create $commit_count commit(s)"
-
-    local repo_root
-    repo_root=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
-    if [[ -z "$repo_root" ]]; then
-        log_err "Not in a git repository"
-        exit 2
-    fi
-
-    cd "$repo_root"
-
-    local total_commits=0 total_failed=0
-    local commit_errors=()
-
-    for i in $(seq 0 $((commit_count - 1))); do
-        local files_json message
-        files_json=$(printf '%s' "$plan_json" | jq -r ".commits[$i].files | .[] // empty")
-        message=$(printf '%s' "$plan_json" | jq -r ".commits[$i].message // empty")
-
-        if [[ -z "$message" ]]; then
-            log_err "Commit $((i + 1)) has no message — skipping"
-            commit_errors+=("Commit $((i + 1)): no message")
-            total_failed=$((total_failed + 1))
-            continue
-        fi
-
-        local files=()
-        while IFS= read -r f; do
-            [[ -z "$f" ]] && continue
-            files+=("$f")
-        done <<<"$files_json"
-
-        if [[ ${#files[@]} -eq 0 ]]; then
-            log_err "Commit $((i + 1)) has no files — skipping"
-            commit_errors+=("Commit $((i + 1)): no files")
-            total_failed=$((total_failed + 1))
-            continue
-        fi
-
-        log_info "Commit $((i + 1))/$commit_count: staging ${#files[@]} file(s)"
-        # Partition files by index status to handle four cases:
-        #   1. Exists on disk + not deleted in index    → `git add -f` (normal / recreated, D→A)
-        #   2. Absent on disk + still in index          → `git add -f` to stage the deletion
-        #   3. Absent on disk + already deleted in index → skip (already staged)
-        #
-        # The previous version collapsed all "absent on disk" paths into a single
-        # skip-list, assuming the deletion was already staged. That was wrong for
-        # case 2 (unstaged deletion): skipping it left the index empty at `git commit`
-        # time, so the commit failed with "nothing to commit".
-        #
-        # We use `git ls-files --error-unmatch` to distinguish case 2 from case 3:
-        #   - Unstaged deletion → succeeds (path still in the index).
-        #   - Already-staged deletion → fails with "pathspec did not match".
-        # `git add -f <absent tracked path>` records intent-to-remove, which is
-        # what we want for case 2. We filter case 3 out because `git add -f` on an
-        # already-staged deletion fails fatally, and `git add` aborts the whole
-        # batch on any single failure.
-        local to_add=()
-        local skipped=()
-        for f in "${files[@]}"; do
-            if [[ -e "$f" || -L "$f" ]]; then
-                # File present on disk. -f: tolerate .gitignored-but-tracked paths
-                # (e.g. specs/ re-created after being staged for deletion earlier).
-                to_add+=("$f")
-            elif git ls-files --error-unmatch -- "$f" >/dev/null 2>&1; then
-                # Absent on disk + still tracked in index → unstaged deletion.
-                # `git add -f` on a missing tracked path stages the deletion.
-                to_add+=("$f")
-            else
-                # Absent on disk and not in index → already staged for deletion.
-                skipped+=("$f")
-            fi
-        done
-        if [[ ${#to_add[@]} -gt 0 ]]; then
-            # -f: tolerate .gitignored-but-tracked paths that may now exist on disk
-            # (e.g. specs/ re-created after being staged for deletion). Harmless
-            # for the other cases.
-            if ! git add -f -- "${to_add[@]}" 2>&1; then
-                log_err "Failed to stage files for commit $((i + 1))"
-                commit_errors+=("Commit $((i + 1)) ($message): stage failed")
-                total_failed=$((total_failed + 1))
-                continue
-            fi
-        fi
-        if [[ ${#skipped[@]} -gt 0 ]]; then
-            log_info "  ${#skipped[@]} file(s) absent on disk (already-staged deletions) — skipped"
-        fi
-
-        local subject_line body_line commit_output
-        subject_line=$(echo "$message" | head -1)
-        body_line=$(echo "$message" | tail -n +3 2>/dev/null || true)
-
-        # Run git commit with hooks ENABLED. Capture both stdout and stderr
-        # so the model can see exactly what the hook complained about.
-        if commit_output=$(git commit -m "$subject_line" ${body_line:+-m "$body_line"} 2>&1); then
-            total_commits=$((total_commits + 1))
-            log_ok "Committed: $subject_line"
+case "${1:-}" in
+    pre)
+        plan_dir=$(mktemp -d "${TMPDIR:-/tmp}/commit-plan.XXXXXX")
+        jq -n --arg root "$root" --arg mode "$mode" \
+            --arg plan_target "$plan_dir/plan.json" \
+            --arg recent_commits "$(git log -10 --format=%s 2>/dev/null || true)" \
+            --argjson staged "$staged" --argjson unstaged "$unstaged" --argjson untracked "$untracked" \
+            '{root: $root, mode: $mode, plan_target: $plan_target, recent_commits: $recent_commits,
+              has_changes: ([$staged[], $unstaged[], $untracked[]] | length > 0),
+              files: {staged: $staged, unstaged: $unstaged, untracked: $untracked}}'
+        ;;
+    post)
+        [[ -f "${PLAN_TARGET:-}" ]] || fail "PLAN_TARGET must name a plan file"
+        jq -e 'type == "object" and
+            (.mode == "staged" or .mode == "worktree") and
+            (.message | type == "string" and test("\\S")) and
+            (.files | type == "array" and length > 0 and
+                all(.[]; type == "string" and length > 0) and length == (unique | length))' \
+            "$PLAN_TARGET" >/dev/null || fail "Invalid commit plan"
+        planned_mode=$(jq -r '.mode' "$PLAN_TARGET")
+        selected=$(jq -c '.files | sort' "$PLAN_TARGET")
+        [[ "$planned_mode" == "$mode" ]] || fail "Index scope changed; inspect and run pre again"
+        if [[ "$mode" == staged ]]; then
+            jq -en --argjson selected "$selected" --argjson staged "$staged" \
+                '$selected == $staged' >/dev/null || fail "Plan must match the entire staged scope"
         else
-            log_err "Commit $((i + 1)) failed:"
-            echo "$commit_output" >&2
-            commit_errors+=("Commit $((i + 1)) ($subject_line): $(echo "$commit_output" | head -5)")
-            total_failed=$((total_failed + 1))
+            jq -en --argjson selected "$selected" --argjson unstaged "$unstaged" --argjson untracked "$untracked" \
+                '($selected - ($unstaged + $untracked) | length) == 0' >/dev/null \
+                || fail "Plan contains unchanged or unknown files"
         fi
-    done
-
-    # Surface any remaining changes that weren't in the plan.
-    # These may be: excluded by the plan, or missed entirely. The model
-    # decides; we just inform.
-    local remaining_count
-    remaining_count=$(git status --porcelain 2>/dev/null | wc -l | tr -d ' ')
-    if [[ "$remaining_count" -gt 0 ]]; then
-        log_warn "$remaining_count file(s) remaining after commit:"
-        git status --porcelain 2>/dev/null | head -20 >&2
-    fi
-
-    # Output summary
-    local log_output
-    log_output=$(git --no-pager log --oneline --decorate -5 2>/dev/null)
-
-    # Build errors JSON array (defensive: empty array if no errors)
-    local errors_json="[]"
-    if [[ ${#commit_errors[@]} -gt 0 ]]; then
-        errors_json=$(printf '%s\n' "${commit_errors[@]}" | jq -R . | jq -s . 2>/dev/null || echo "[]")
-    fi
-
-    jq -n \
-        --argjson commits_created "$total_commits" \
-        --argjson commits_failed "$total_failed" \
-        --argjson commits_planned "$commit_count" \
-        --argjson errors "$errors_json" \
-        --arg recent_commits "$log_output" \
-        '{
-            status: (if $commits_failed == 0 then "SUCCESS" else "PARTIAL" end),
-            commits_created: $commits_created,
-            commits_failed: $commits_failed,
-            commits_planned: $commits_planned,
-            errors: $errors,
-            recent_commits: $recent_commits
-        }'
-}
-
-# ── Dispatch ──────────────────────────────────────────────────────────────
-if [[ $# -lt 1 ]]; then
-    echo "Usage: $0 <pre|post> [--fix]"
-    echo ""
-    echo "Subcommands:"
-    echo "  pre            - Gather git state, validate, emit JSON contract to stdout"
-    echo "  pre --fix      - Same as 'pre' but also runs 'mise run fix' first"
-    echo "  post           - Read commit plan, execute commits (reads PLAN_TARGET env)"
-    exit 1
-fi
-
-SUBCOMMAND="$1"
-shift
-
-case "$SUBCOMMAND" in
-    pre) cmd_pre "$@" ;;
-    post) cmd_post ;;
-    -h|--help|help)
-        echo "Usage: $0 <pre|post> [--fix]"
-        echo ""
-        echo "  pre            - Gather git state, validate, emit JSON contract to stdout"
-        echo "  pre --fix      - Same as 'pre' but also runs 'mise run fix' first"
-        echo "  post           - Read commit plan, execute commits (reads PLAN_TARGET env)"
-        exit 0
+        jq -e '.files | any(.[]; test("(^|/)(\\.env($|\\.)|id_(rsa|ed25519)($|\\.)|\\.npmrc$)|\\.(pem|p12|key)$"))' \
+            "$PLAN_TARGET" >/dev/null && fail "Sensitive filename selected; review and commit manually"
+        files=()
+        while IFS= read -r -d '' path; do files+=("$path"); done \
+            < <(jq -j '.files[] | ., "\u0000"' "$PLAN_TARGET")
+        if [[ "$mode" == worktree ]]; then
+            git --literal-pathspecs add -A -- "${files[@]}"
+        fi
+        git diff --cached --check
+        message=$(jq -r '.message' "$PLAN_TARGET")
+        git commit -m "$message"
+        git log -1 --format='%h %s'
+        git status --short
         ;;
-    *)
-        log_err "Unknown subcommand: $SUBCOMMAND"
-        exit 1
-        ;;
+    *) fail "Usage: $0 pre|post" ;;
 esac
