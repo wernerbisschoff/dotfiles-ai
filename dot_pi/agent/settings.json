@@ -22,5 +22,6 @@
   "hideThinkingBlock": true,
   "defaultThinkingLevel": "low",
   "defaultProvider": "opencode-go",
-  "defaultModel": "muse-spark-1.3-contributor"
+  "defaultModel": "muse-spark-1.3-contributor",
+  "tuiMode": "regular"
 }
