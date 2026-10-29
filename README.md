@@ -32,11 +32,12 @@ Tasks: `mise run diff|status|edit|verify|lint|format|fix|install`.
 
 ## Bootstrap
 
-Public repo — clone over HTTPS, then run the local `bootstrap.sh`
-(installs mise + chezmoi if missing, applies). Idempotent:
+Public repo — one line over HTTPS (installs mise + chezmoi if missing,
+clones, applies). Idempotent. `bootstrap.sh` reads no stdin, so piping is safe:
 
 ```bash
-git clone https://github.com/wernerbisschoff/dotfiles-ai.git ~/.local/share/chezmoi-ai && ~/.local/share/chezmoi-ai/bootstrap.sh
+curl -fsSL https://raw.githubusercontent.com/wernerbisschoff/dotfiles-ai/main/bootstrap.sh | bash
+# or: git clone https://github.com/wernerbisschoff/dotfiles-ai.git ~/.local/share/chezmoi-ai && ~/.local/share/chezmoi-ai/bootstrap.sh
 ```
 
 If `~/.local/share/chezmoi-ai` already exists, run that script only.
