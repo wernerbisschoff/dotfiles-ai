@@ -37,7 +37,7 @@ with an [emoji prefix](https://gitmoji.dev/) for visual scannability.
 
 - One logical change per commit. Split unrelated changes.
 - **Subject**: imperative, lowercase after the colon, no trailing period, ≤ 50 chars.
-- **Scope** *(optional)*: short noun — `pi`, `omp`, `chezmoi`, `agents`, `claude`, etc.
+- **Scope** *(optional)*: short noun — `pi`, `codex`, `chezmoi`, `agents`, etc.
 - **Breaking changes**: append `!` after the type/scope **and** add a `BREAKING CHANGE: <explanation>` footer.
 - **Body** *(optional)*: explain *why*, not *what*. Wrap at 72 chars/line.
 - **Footer** *(optional)*: `BREAKING CHANGE: …`, `Refs: #123`, etc.

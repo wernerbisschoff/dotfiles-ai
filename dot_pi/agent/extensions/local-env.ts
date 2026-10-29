@@ -8,9 +8,7 @@
  * settings.json. The current active model is exposed to child processes
  * as $PI_MODEL session metadata — extensions must not set it.
  *
- * The droid wrapper still uses `_load_ai_env` (droid has no extension
- * mechanism). The `claude-*` wrappers rely on the file-level
- * `source "$HOME/.env"` at shell startup, so they're unaffected.
+* No shell wrappers remain — env loading is extension-native.
  *
  * Why module-top-level env mutation:
  *   Pi constructs providers BEFORE emitting `session_start`, so an event

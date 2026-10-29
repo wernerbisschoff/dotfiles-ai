@@ -3,8 +3,8 @@
 # skills, prompts, extensions, themes). Installs mise + chezmoi if missing,
 # arranges this repo at ~/.local/share/chezmoi-ai, and applies it. Idempotent.
 #
-# Usage (private repo — clone once over SSH, then run this file locally):
-#   git clone git@github.com:wernerbisschoff/dotfiles-ai.git ~/.local/share/chezmoi-ai && ~/.local/share/chezmoi-ai/bootstrap.sh
+# Usage (public repo — clone over HTTPS, then run this file locally):
+#   git clone https://github.com/wernerbisschoff/dotfiles-ai.git ~/.local/share/chezmoi-ai && ~/.local/share/chezmoi-ai/bootstrap.sh
 # If this directory already exists, just run ./bootstrap.sh (no second clone).
 
 set -euo pipefail
@@ -43,7 +43,7 @@ if [[ ! -d "$AI_SRC/.git" ]]; then
 	git clone https://github.com/wernerbisschoff/dotfiles-ai.git "$AI_SRC"
 fi
 
-# Apply the AI repo (renders ~/.claude, ~/.gemini, ~/.pi, ~/.factory, ...).
+# Apply the AI repo (renders ~/.pi, ~/.codex, ~/.agents, ~/.config/opencode, ...).
 log_info "Applying chezmoi from wernerbisschoff/dotfiles-ai..."
 chezmoi -S "$AI_SRC" apply
 

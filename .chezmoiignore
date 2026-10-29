@@ -1,22 +1,10 @@
 # Root-level docs (managed outside chezmoi — not rendered to $HOME)
 .DS_Store
 .env
-./CLAUDE.md
 ./AGENTS.md
 ./CONTRIBUTING.md
 ./README.md
 ./bootstrap.sh
-
-# === Claude Code ===
-.claude/*
-!.claude/hooks/
-!.claude/CLAUDE.md
-!.claude/settings.json
-!.claude/commands/
-!.claude/commands/**
-!.claude/scripts/
-!.claude/scripts/**
-!.claude/skills/**
 
 # === OpenCode ===
 .config/opencode/*
@@ -45,38 +33,6 @@
 # Pi web-search config lives under ~/.config/pi via XDG
 .config/pi/*
 !.config/pi/web-search.json
-
-# === OMP ===
-.omp/agent/agent.db*
-.omp/agent/history.db*
-.omp/agent/models.db*
-.omp/agent/sessions/
-.omp/agent/terminal-sessions/
-.omp/agent/memories/
-.omp/agent/managed-skills/
-.omp/cache/
-.omp/logs/
-.omp/stats*
-.omp/natives/
-.omp/gpu_cache.json
-!.omp/agent/config.yml
-!.omp/agent/mcp.json
-!.omp/agent/extensions
-!.omp/agent/extensions/**
-
-# === Factory / Droid ===
-.factory/*
-!.factory/skills
-!.factory/commands
-!.factory/rules
-!.factory/rules/**
-!.factory/settings.json
-!.factory/AGENTS.md
-!.factory/mcp.json
-
-# === Cursor ===
-.cursor/*
-!.cursor/mcp.json
 
 # === Misc ===
 memory.md

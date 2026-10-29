@@ -1,59 +1,45 @@
 # Chezmoi Templates — Prompt Unification
 
-This directory contains **core prompt templates** that are unified across Claude Code, Codex, and Gemini CLI configurations.
+This directory holds **core prompt templates** shared by the Pi and Codex
+configurations.
 
 ## Directory Structure
 
 ```
 .chezmoitemplates/
-├── prompts/
-│   ├── plan/        # Core prompts for plan: commands
-│   ├── tm/          # Core prompts for tm: commands
-│   └── tools/       # Core prompts for tools: commands
-└── README.md        # This file
+├── AGENTS.md.tmpl    # Shared agent guidance (Pi, Codex, OpenCode)
+├── skills/           # Shared skill definitions (render to ~/.agents/skills)
+├── prompts/          # Shared slash-command prompts
+│   ├── prompts/      # Core prompts for prompt-refine / prompt-evaluate
+│   └── tools/        # Core prompts for tool commands
+├── rules/            # Shared rule snippets
+└── scripts/          # Shared helper scripts
 ```
 
 ## Editing Rules (Critical)
 
-### 📝 Core Prompts (Authoritative)
+### 📝 Core Templates (Authoritative)
 
-**Location**: `.chezmoitemplates/prompts/{plan,tm,tools}/{name}.md`
-
-- **Edit these files** when updating prompt content
-- These are the **single source of truth** for prompt definitions
-- Changes here automatically propagate to all tools (Claude, Codex, Gemini)
+- **Edit these files** when updating shared content.
+- These are the **single source of truth** for skills, prompts, and agent guidance.
+- Changes here propagate on the next apply.
 
 ### 🔗 Generated Files (Do NOT Edit)
 
-- **Claude**: `dot_claude/commands/{plan,tm,tools}/{name}.md`
-- Generated via `{{ template "prompts/plan/{name}.md" . }}`
-- **Never edit directly** — changes will be lost on the next apply
-
-**Codex**: `dot_codex/skills/{name}/SKILL.md`
-- Generated from `.chezmoitemplates/prompts/{name}.md.tmpl`
-- **Never edit directly** — changes will be lost on the next apply
-
-**Gemini**: `dot_gemini/commands/{name}.toml`
-- Generated from `.chezmoitemplates/prompts/{name}.toml.tmpl`
-- **Never edit directly** — changes will be lost on the next apply
+- `dot_agents/skills/*` — rendered from `.chezmoitemplates/skills/*.tmpl`.
+- `dot_pi/agent/AGENTS.md`, `dot_codex/AGENTS.md`,
+  `dot_config/opencode/AGENTS.md` — rendered from `AGENTS.md.tmpl`.
+- **Never edit directly** — changes are lost on the next apply.
 
 ## Template Variables
 
 ### Destination-Based Conditionals
 
-Since templates render to different tool directories, use `.chezmoi.targetFile` for tool-specific customization:
+Templates can render tool-specific content via `.chezmoi.targetFile`:
 
 ```chezmoitmpl
-{{ if contains "/.claude/" .chezmoi.targetFile }}
-Claude-specific content here...
-{{ end }}
-
 {{ if contains "/.codex/" .chezmoi.targetFile }}
 Codex-specific content here...
-{{ end }}
-
-{{ if contains "/.gemini/" .chezmoi.targetFile }}
-Gemini-specific content here...
 {{ end }}
 
 {{ if contains "/.config/opencode/" .chezmoi.targetFile }}
@@ -61,86 +47,47 @@ Opencode-specific content here...
 {{ end }}
 ```
 
-#### Usage Example
-
-```chezmoitmpl
-# Core prompt content (shared across all tools)
-
-You are implementing a command with the following requirements...
-
-{{ if contains "/.claude/" .chezmoi.targetFile }}
-## Claude-Specific Instructions
-
-- Use the `/sdd:implement` workflow (preferred; `/plan:implement` is legacy)
-- Follow debugging-first development principles
-- Run `/sdd:sync` before committing (legacy: `/plan:sync`)
-{{ end }}
-
-{{ if contains "/.codex/" .chezmoi.targetFile }}
-## Codex-Specific Instructions
-
-- Use the `/sdd:implement` workflow (replaces `/tm:implement`)
-- Track progress via SDD-based tasks and artifacts
-- Run `/sdd:sync` before committing
-{{ end }}
-
-{{ if contains "/.gemini/" .chezmoi.targetFile }}
-## Gemini-Specific Instructions
-
-- Use the `--model=gemini-2.5-flash` flag
-- Output format should match plan specifications
-{{ end }}
-```
-
 ### Common Template Variables
 
 | Variable | Description | Example |
 |----------|-------------|---------|
-| `.chezmoi.targetFile` | Destination directory path | `/Users/werner/.claude/commands` |
+| `.chezmoi.targetFile` | Destination directory path | `/Users/werner/.codex/AGENTS.md` |
 | `.chezmoi.sourceDir` | Source directory (chezmoi root) | `/Users/werner/.local/share/chezmoi-ai` |
 | `.chezmoi.homeDir` | User's home directory | `/Users/werner` |
 
-## File Ownership
+### User-Provided Arguments
+
+Pass user arguments through as `$ARGUMENTS`.
 
 | File Type | Location | Owner | Editable? | Maintenance |
 |-----------|----------|-------|-----------|-------------|
-| Core prompts | `.chezmoitemplates/prompts/**/*` | Werner | ✅ Yes | Edit as needed |
-| Claude commands | `dot_claude/commands/**/*` | Generated | ❌ No | Auto-regenerated |
-| Codex skills | `dot_codex/skills/**/*` | Generated | ❌ No | Auto-regenerated |
-| Gemini configs | `dot_gemini/commands/**/*` | Generated | ❌ No | Auto-regenerated |
-| Opencode skills | `dot_config/opencode/skills/**/*` | Generated | ❌ No | Auto-regenerated |
-
-## Core Prompt Inventory
-
-| Category | Commands | Owner | Last Updated |
-|----------|----------|-------|--------------|
-| Plan | client, commit, decide, design, docs, explore, fix, implement, oneshot, prd, sync, tasks | Werner | 2026-02-09 |
-| TM | commit, fix, implement, init, oneshot, research, sync-and-commit, tasks | Werner | 2026-02-09 |
-| Tools | commit, create-worktree, domain, explain, init, pr, pr-review, research, review | Werner | 2026-02-09 |
+| Core skills | `.chezmoitemplates/skills/**/*` | You | ✅ Yes | Edit as needed |
+| Shared agent skills | `dot_agents/skills/**/*` | Generated | ❌ No | Auto-regenerated |
+| Agent guidance | `dot_pi/`, `dot_codex/`, `dot_config/opencode/` | Generated | ❌ No | Auto-regenerated |
 
 ## Maintenance Instructions
 
-1. **Updating a prompt**: Edit the core `.tmpl` file in `.chezmoitemplates/prompts/`
-2. **Applying changes**: Run `mise run apply` (pinned to ~/.local/share/chezmoi-ai) to regenerate all derived files
-3. **Verification**: Check generated files in `~/.claude/`, `~/.codex/`, `~/.gemini/`, `~/.config/opencode/`
-4. **Rollback**: If changes break something, revert the core template and re-apply
+1. **Update a skill or prompt**: edit the core `.tmpl` file in `.chezmoitemplates/`.
+2. **Apply changes**: run `mise run apply` (pinned to ~/.local/share/chezmoi-ai).
+3. **Verify**: check rendered files in `~/.agents/`, `~/.pi/`, `~/.codex/`.
+4. **Rollback**: revert the core template and re-apply.
 
 ## Workflow
 
-1. **Edit core prompt**: Modify `.chezmoitemplates/prompts/{category}/{name}.md`
-2. **Test locally**: Run `chezmoi -S ~/.local/share/chezmoi-ai diff` to preview changes
-3. **Apply**: Run `mise run apply` to generate all files
-4. **Verify**: Check generated files in `dot_claude/`, `dot_codex/`, `dot_gemini/`
+1. **Edit core template**: modify the `.tmpl` file in `.chezmoitemplates/`.
+2. **Test locally**: run `chezmoi -S ~/.local/share/chezmoi-ai diff` to preview.
+3. **Apply**: run `mise run apply`.
+4. **Verify**: check rendered files in `dot_agents/`, `dot_pi/`, `dot_codex/`.
 
 ## Debugging Template Issues
 
-If generated files don't contain expected content:
+If rendered files lack expected content:
 
-1. Check template syntax with `chezmoi execute-template < file`
-2. Verify variable names match `.chezmoi` documentation
-3. Ensure `{{ template "prompts/<path>" . }}` paths are relative to `.chezmoitemplates/`
-4. Run `chezmoi -S ~/.local/share/chezmoi-ai apply --dry-run` to preview all changes
+1. Check template syntax with `chezmoi execute-template < file`.
+2. Verify variable names match `.chezmoi` documentation.
+3. Ensure `{{ template "<path>" . }}` paths are relative to `.chezmoitemplates/`.
+4. Run `chezmoi -S ~/.local/share/chezmoi-ai apply --dry-run` to preview.
 
 ---
 
-**Remember**: When in doubt, edit the core prompt in `.chezmoitemplates/prompts/` and let chezmoi handle the rest.
+**Remember**: when in doubt, edit the core template in `.chezmoitemplates/` and let chezmoi handle the rest.

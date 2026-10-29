@@ -2,24 +2,22 @@
 
 [chezmoi](https://www.chezmoi.io/)-managed AI coding-agent configuration.
 Sibling of [wernerbisschoff/dotfiles](https://github.com/wernerbisschoff/dotfiles)
-(the OS/shell repo). This repo owns every `$HOME` target for AI agents:
-skills, prompts, commands, extensions, and themes.
+(the OS/shell repo). This repo owns every `$HOME` target for the Pi and
+Codex agents: shared skills, prompts, extensions, and themes.
 
 ## Scope
 
 | Source dir (chezmoi) | Renders to |
-|---|---|
+| --- | --- |
+| `dot_agents/skills/**` | `~/.agents/skills/` (shared skill library) |
+| `dot_pi/**` | `~/.pi/` (extensions, themes, settings, MCP) |
+| `dot_codex/**` | `~/.codex/` (AGENTS.md, rules; skills symlinked from `~/.agents/skills`) |
 | `.chezmoitemplates/**` | shared template source of truth |
-| `dot_claude/**` | `~/.claude/` |
-| `dot_gemini/**` | `~/.gemini/` |
-| `dot_pi/**` | `~/.pi/` |
-| `private_dot_factory/**` | `~/.factory/` (0600) |
-| `dot_codex/**` | `~/.codex/` |
-| `private_dot_omp/**` | `~/.omp/` (0600) |
-| `dot_cursor/**` | `~/.cursor/` |
-| `dot_config/opencode/**` | `~/.config/opencode/` |
-| `dot_config/pi/**` | `~/.config/pi/` |
-| `dot_config/zsh/conf.d/050-ai-wrappers.zsh`, `060-pi-theme-sync.zsh` | `~/.config/zsh/conf.d/` |
+| `dot_config/pi/**` | `~/.config/pi/` (web-search config) |
+| `dot_config/opencode/**` | `~/.config/opencode/` (skills symlinked from `~/.agents/skills`) |
+| `dot_config/herdr/**`, `dot_config/hunk/**` | `~/.config/herdr/`, `~/.config/hunk/` |
+| `dot_plannotator/**` | `~/.plannotator/` |
+| `dot_config/zsh/conf.d/060-pi-theme-sync.zsh`, `070-herdr.zsh` | `~/.config/zsh/conf.d/` |
 
 Source dir: `~/.local/share/chezmoi-ai`. The main repo owns no AI targets and
 the AI repo owns no OS/shell targets — the split is disjoint.
@@ -34,28 +32,24 @@ Tasks: `mise run diff|status|edit|verify|lint|format|fix|install`.
 
 ## Bootstrap
 
-This repo is private, so `raw.githubusercontent.com` 404s and a
-`curl | bash` of `bootstrap.sh` cannot work.
-
-One line — one clone, then local `bootstrap.sh` (installs mise + chezmoi,
-skips a second clone, applies). Needs SSH access to GitHub:
+Public repo — clone over HTTPS, then run the local `bootstrap.sh`
+(installs mise + chezmoi if missing, applies). Idempotent:
 
 ```bash
-git clone git@github.com:wernerbisschoff/dotfiles-ai.git ~/.local/share/chezmoi-ai && ~/.local/share/chezmoi-ai/bootstrap.sh
+git clone https://github.com/wernerbisschoff/dotfiles-ai.git ~/.local/share/chezmoi-ai && ~/.local/share/chezmoi-ai/bootstrap.sh
 ```
 
-`bootstrap.sh` is idempotent. If `~/.local/share/chezmoi-ai` already exists,
-run that script only. Do not use `chezmoi init` after this clone — that would
-clone again. May run independently of the main `dotfiles` repo.
+If `~/.local/share/chezmoi-ai` already exists, run that script only.
+Do not use `chezmoi init` after this clone — that would clone again.
+May run independently of the main `dotfiles` repo.
 
 ## Toolchain
 
-The AI CLIs (`pi`, `herdr`, `hunk`) are declared in `.mise.toml`. On a fresh
-machine, `run_once_after_install-ai-mise-tools.sh` registers them as global
-`mise` tools (`mise use -g`) so their shims are machine-wide. npm globals
-(`@zvec/zvec-grep`, `@wernerbisschoff/libref`) install via
-`run_once_after_npm-globals.sh`, and `run_once_after_seed-context-docs.sh`
-pre-seeds libref docs.
+The AI CLIs (`pi`, `herdr`, `hunk`) are declared as global `mise` tools by
+`run_once_after_install-ai-mise-tools.sh` (`mise use -g`), so their shims stay
+machine-wide. npm globals (`@zvec/zvec-grep`, `@wernerbisschoff/libref`)
+install via `run_once_after_npm-globals.sh`, and
+`run_once_after_seed-context-docs.sh` pre-seeds libref docs.
 
 ## Plannotator (custom build)
 
@@ -77,10 +71,10 @@ cp /tmp/plannotator-custom ~/.local/bin/plannotator
 
 ## Layout notes
 
-- `.chezmoitemplates/` is the source of truth: prompts, skills, rules, scripts
-  that render into `dot_claude/`, `dot_codex/`, `dot_gemini/`,
-  `dot_config/opencode/`. Never edit the generated `dot_*` files' *.md.tmpl
-  directly — edit the `.chezmoitemplates/` core and re-apply.
-- Root `CLAUDE.md` / `AGENTS.md` guide agents editing this repo.
+- `.chezmoitemplates/` is the source of truth: skills, prompts, rules, and
+  the shared `AGENTS.md` that renders into `dot_pi/`, `dot_codex/`, and
+  `dot_config/opencode/`. Never edit the generated `dot_*` outputs directly —
+  edit the `.chezmoitemplates/` core and re-apply.
+- Root `AGENTS.md` guides agents editing this repo.
 - OS/shell/git targets (zsh, starship, ghostty, gitconfig, SSH) live in the
   main repo — do not move them here.
