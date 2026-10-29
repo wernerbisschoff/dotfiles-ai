@@ -1,0 +1,68 @@
+{{/* Maintained on the vod-skills branch — keep on rebase. */}}
+#!/usr/bin/env bash
+# cut-short.sh - cut one clip (vertical or horizontal), optionally with burned-in captions.
+# Usage: cut-short.sh [--no-subs] <video> <subs.srt> <start> <end> <out.mp4>
+# Times accept seconds or HH:MM:SS. Output keeps source dimensions, H.264 + AAC.
+# --no-subs cuts clean video (showcase default); captions stay default for shorts.
+set -euo pipefail
+NO_SUBS=0
+if [ "${1:-}" = "--no-subs" ]; then NO_SUBS=1; shift; fi
+if [ "$#" -ne 5 ]; then echo "usage: cut-short.sh [--no-subs] <video> <subs.srt> <start> <end> <out.mp4>" >&2; exit 1; fi
+VIDEO=$1; SUBS=$2; START=$3; END=$4; OUT=$5
+SHIFTED=""
+FFMPEG=${FFMPEG:-$(command -v ffmpeg-full 2>/dev/null || ls -d /opt/homebrew/Cellar/ffmpeg-full/*/bin/ffmpeg 2>/dev/null | sort -V | tail -1 || command -v ffmpeg)}
+have_subs() { "$1" -hide_banner -h filter=subtitles 2>&1 | grep -q '^Filter subtitles'; }
+if [ "$NO_SUBS" = 1 ]; then HAVE_SUBS=0
+elif have_subs "$FFMPEG"; then HAVE_SUBS=1
+else echo "error: captions requested but $FFMPEG has no subtitles filter (no libass); pass --no-subs or set FFMPEG to a build with libass" >&2; exit 1; fi
+if [ "$HAVE_SUBS" = 1 ]; then
+  # input -ss resets output timestamps to zero, so shift subs back by START
+  SHIFTED=$(mktemp -t shortsubs.XXXXXX.srt)
+  SUBS="$SUBS" START="$START" OUT_SRT="$SHIFTED" python3 - <<'PY'
+import os, re
+def sec(t):
+    p = [float(x.replace(',', '.')) for x in t.split(':')]
+    while len(p) < 3: p.insert(0, 0.0)
+    return p[0]*3600 + p[1]*60 + p[2]
+def ts(s):
+    s = max(s, 0); h=int(s//3600); m=int((s%3600)//60); sec=int(s%60); ms=int(round((s%1)*1000))
+    return f"{h:02d}:{m:02d}:{sec:02d},{ms:03d}"
+off = sec(os.environ['START'])
+raw = open(os.environ['SUBS']).read().strip().split('\n\n')
+n = 0
+out = []
+for b in raw:
+    m = re.search(r'(\d+:\d+:\d+,\d+) --> (\d+:\d+:\d+,\d+)\s*(.*)', b, re.S)
+    if not m: continue
+    a, e, txt = sec(m.group(1)), sec(m.group(2)), m.group(3).strip()
+    if e <= off: continue
+    n += 1
+    out.append(f"{n}\n{ts(a-off)} --> {ts(e-off)}\n{txt}")
+open(os.environ['OUT_SRT'], 'w').write('\n\n'.join(out) + '\n')
+print(f"shifted {n} sub lines by -{off}s")
+PY
+  # burn via ASS with explicit geometry from source dimensions: bottom-center,
+  # anchored just below the gameplay/webcam seam (~26% margin) so captions sit
+  # in the dead band above the head — never over the face or the game UI
+  ASS="$SHIFTED.ass"
+  "$FFMPEG" -y -v error -i "$SHIFTED" "$ASS"
+  FFPROBE=$(dirname "$FFMPEG")/ffprobe; [ -x "$FFPROBE" ] || FFPROBE=$(command -v ffprobe)
+  DIM=$("$FFPROBE" -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "$VIDEO")
+  W=$(echo "$DIM" | cut -d, -f1); H=$(echo "$DIM" | cut -d, -f2)
+  ASS="$ASS" W="${W:-1080}" H="${H:-1920}" python3 - <<'PY'
+import os, re
+p = os.environ['ASS']; W = int(os.environ['W']); H = int(os.environ['H'])
+fs = max(H*64//1920, 16); mv = H*500//1920
+t = open(p).read()
+t = t.replace('PlayResX: 384', f'PlayResX: {W}').replace('PlayResY: 288', f'PlayResY: {H}')
+t = re.sub(r'^Style: .*', f'Style: Default,Helvetica,{fs},&H00FFFFFF,&H000019FF,&H80000000,&H80000000,0,0,0,0,100,100,0,0,1,2,0,2,40,40,{mv},1', t, flags=re.M)
+open(p, 'w').write(t)
+print(f'ass geometry {W}x{H} fontsize {fs} margin {mv}')
+PY
+  VF="ass='$ASS'"
+else VF=null; fi
+"$FFMPEG" -y -v error -ss "$START" -to "$END" -i "$VIDEO" \
+  -vf "$VF" \
+  -c:v libx264 -preset fast -crf 20 -pix_fmt yuv420p -c:a aac -b:a 128k -movflags +faststart "$OUT"
+rm -f "$SHIFTED" "$SHIFTED.ass"
+echo "wrote $OUT"
