@@ -5,6 +5,7 @@
 ./CONTRIBUTING.md
 ./README.md
 ./bootstrap.sh
+./LICENSE
 
 # === OpenCode ===
 .config/opencode/*
