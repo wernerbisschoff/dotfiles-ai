@@ -47,8 +47,7 @@ Never bypass hooks, force-add ignored files, amend without permission, or add AI
 Never include secrets. Filename checks are only a warning layer, not a content secret scanner.
 Report the commit hash, subject, and remaining changes.
 
-When Pi code mode is available, batch independent inspection calls and check their exit codes.
-Do not hide relevant diff content. Run staging and commits sequentially; stop at the first failure.
+Batch inspection into one `codemode` call: `pre`, `git status`/`diff`/`log`, and convention-file reads in parallel. Execute in one `codemode` call: `tools.write` the plan, then `tools.bash` for `post` (sequential, never parallel).
 
 ## Edge cases
 

@@ -35,6 +35,8 @@ Use when the user:
 
 ## [EXECUTION_SEQUENCE]
 
+Batch STEP_1 (`status`, both-branch `log`) plus STEP_2 `diff --check` into one parallel `codemode` call; same for STEP_6 verification (`status`, `diff --cached`, lint/test output).
+
 [STEP_1_SITUATION_ASSESSMENT]
 
 - Run `git status` to identify all conflicted files

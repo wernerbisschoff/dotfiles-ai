@@ -33,6 +33,8 @@ Use this skill when the user:
 
 ## [EXECUTION_SEQUENCE]
 
+Batch STEP_1 lists plus STEP_2 run views and log tails (max 3 runs) into one parallel `codemode` call.
+
 ### [STEP_1_FETCH_PR_AND_FAILURE_SUMMARY]
 
 1. Run `gh pr view {pr_identifier} --json number,title,state,headRefName,baseRefName,statusCheckRollup,url` to get PR context

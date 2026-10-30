@@ -28,3 +28,7 @@ The zvec-grep MCP search tool runs indexed semantic search (transport: `zg serve
 - Exact words, identifiers, paths, regex → `zg query --rg <pattern>` via bash (no index needed).
 - Index lifecycle is CLI-side: `zg index` / `zg status`. Never rebuild or drop an index silently — only on explicit request.
 - A sufficient source-linked snippet counts as read evidence; open the cited file only when a needed detail falls outside the snippet.
+
+## codemode
+
+When Pi `codemode` is available, prefer it over separate tool calls: batch independent calls into one call (`Promise.allSettled`), chain dependent ones, filter large output in-script. Check exit codes; do not hide relevant output. Sequential steps (staging, commits) stay sequential — stop at the first failure.
