@@ -2,7 +2,7 @@
 name: commit
 description: "Use when creating commits"
 category: general_context_skills
-version: 4.0.0
+version: 4.1.0
 ---
 
 Create focused, reversible commits. Read the final User input section before following this workflow.
@@ -10,9 +10,11 @@ Create focused, reversible commits. Read the final User input section before fol
 ## Inspect
 
 1. Run `~/.agents/skills/commit/commit.sh pre`. Stop on failure or no changes.
-2. Read repository instructions, `CONTRIBUTING.md`, and `.commit-convention.md` when present.
-   Follow their commit format, including required emojis. Otherwise, follow the returned recent commit subjects.
+2. The `pre` output includes `conventions` excerpts (`null` when a file is absent). Follow their commit format,
+   including required emojis. Only read the files directly when the excerpt is insufficient.
+   Otherwise, follow the returned recent commit subjects.
 3. Inspect `git status --short`, `git diff --cached`, and `git diff` as needed for the intended scope.
+   Cap output (`--stat`, `--name-status`, `head -50`); never paste whole file contents into context.
    Use name-status output to check deletions and renames. Read selected untracked files separately.
    For large, generated, or binary files, inspect type, size, and relevant metadata instead.
 4. Existing staged changes define the default scope. Do not include unstaged changes from those files.
@@ -24,12 +26,13 @@ Create focused, reversible commits. Read the final User input section before fol
 - Prefer one logical commit. Split unrelated changes; keep supporting lockfile changes with their code.
 - Follow explicit repository message conventions before recent history. Otherwise, use `<type>(<scope>): <subject>`.
 - Use a concise subject. Add a body only to explain intent, important effects, or breaking changes.
-- Show the subject and scope briefly. Ask before an unclear scope or a proposed split, not for routine execution.
+- Show the subject and scope briefly. Decide a split yourself when files fall into clear groups and state it;
+  ask only when scope is genuinely ambiguous, not for routine execution.
 - Run repository-required checks. Do not claim checks passed unless you ran them or have current evidence.
 
 ## Execute
 
-Write this JSON to the returned `plan_target`:
+Write this JSON to the returned `plan_target` (the file does not exist yet; create it with the write tool or a heredoc):
 
 ```json
 {"mode":"staged","files":["path/to/file"],"message":"fix(scope): explain the change"}
@@ -47,7 +50,10 @@ Never bypass hooks, force-add ignored files, amend without permission, or add AI
 Never include secrets. Filename checks are only a warning layer, not a content secret scanner.
 Report the commit hash, subject, and remaining changes.
 
-Batch inspection into one `codemode` call: `pre`, `git status`/`diff`/`log`, and convention-file reads in parallel. Execute in one `codemode` call: `tools.write` the plan, then `tools.bash` for `post` (sequential, never parallel).
+Batch inspection into one block of parallel tool calls: `pre` plus `git status`/`diff`/`log` together.
+Do not probe for convention files separately; their excerpts come from `pre`.
+Write the plan to the returned `plan_target`, then run `post` — sequential, never parallel.
+Reuse one `pre` result for write+post; re-run `pre` only when the index changed or for an additional commit.
 
 ## Edge cases
 

@@ -26,6 +26,14 @@ unstaged=$(git diff --no-renames --name-only -z | paths_json)
 untracked=$(git ls-files --others --exclude-standard -z | paths_json)
 mode=worktree
 [[ "$staged" == '[]' ]] || mode=staged
+conventions=$(jq -n '{}')
+for convention_file in CONTRIBUTING.md .commit-convention.md; do
+    if [[ -f "$convention_file" ]]; then
+        conventions=$(jq --arg k "$convention_file" --arg v "$(head -50 -- "$convention_file")" '. + {($k): $v}' <<<"$conventions")
+    else
+        conventions=$(jq --arg k "$convention_file" '. + {($k): null}' <<<"$conventions")
+    fi
+done
 
 case "${1:-}" in
     pre)
@@ -34,18 +42,19 @@ case "${1:-}" in
             --arg plan_target "$plan_dir/plan.json" \
             --arg recent_commits "$(git log -10 --format=%s 2>/dev/null || true)" \
             --argjson staged "$staged" --argjson unstaged "$unstaged" --argjson untracked "$untracked" \
+            --argjson conventions "$conventions" \
             '{root: $root, mode: $mode, plan_target: $plan_target, recent_commits: $recent_commits,
+              conventions: $conventions,
               has_changes: ([$staged[], $unstaged[], $untracked[]] | length > 0),
               files: {staged: $staged, unstaged: $unstaged, untracked: $untracked}}'
         ;;
     post)
         [[ -f "${PLAN_TARGET:-}" ]] || fail "PLAN_TARGET must name a plan file"
-        jq -e 'type == "object" and
-            (.mode == "staged" or .mode == "worktree") and
-            (.message | type == "string" and test("\\S")) and
-            (.files | type == "array" and length > 0 and
-                all(.[]; type == "string" and length > 0) and length == (unique | length))' \
-            "$PLAN_TARGET" >/dev/null || fail "Invalid commit plan"
+        jq -e 'type == "object"' "$PLAN_TARGET" >/dev/null || fail "Invalid commit plan: must be a JSON object with {mode, files, message}"
+        jq -e '.mode == "staged" or .mode == "worktree"' "$PLAN_TARGET" >/dev/null || fail "Invalid commit plan: .mode must be \"staged\" or \"worktree\" (got $(jq -r '.mode // "missing"' "$PLAN_TARGET"))"
+        jq -e '.message | type == "string" and test("\\S")' "$PLAN_TARGET" >/dev/null || fail "Invalid commit plan: .message must be a non-blank string"
+        jq -e '.files | type == "array" and length > 0' "$PLAN_TARGET" >/dev/null || fail "Invalid commit plan: .files must be a non-empty array (staged mode: list every staged file)"
+        jq -e '.files | all(.[]; type == "string" and length > 0) and length == (unique | length)' "$PLAN_TARGET" >/dev/null || fail "Invalid commit plan: .files must be unique non-empty strings"
         planned_mode=$(jq -r '.mode' "$PLAN_TARGET")
         selected=$(jq -c '.files | sort' "$PLAN_TARGET")
         [[ "$planned_mode" == "$mode" ]] || fail "Index scope changed; inspect and run pre again"
