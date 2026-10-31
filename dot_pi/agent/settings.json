@@ -7,15 +7,16 @@
   "quietStartup": true,
   "lastChangelogVersion": "1.4.0",
   "packages": [
-    "npm:pi-web-access",
     "npm:pi-hashline-edit",
     "npm:pi-lmstudio",
     "npm:pi-commandcode-provider",
     "npm:pi-btw",
     "npm:pi-paster",
     "npm:@plannotator/pi-extension",
-    "npm:billion-context",
-    "npm:pi-lens"
+    "npm:billion-context-pi-lean",
+    "npm:pi-lens",
+    "npm:@ssk_dev/pi-web-access-lean",
+    "npm:@ssk_dev/pi-subagents-lean"
   ],
   "treeFilterMode": "user-only",
   "hideThinkingBlock": true,
