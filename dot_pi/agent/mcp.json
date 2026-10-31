@@ -3,6 +3,10 @@
     "zvec_grep": {
       "command": "zg",
       "args": ["server", "--stdio"]
+    },
+    "libref": {
+      "command": "libref",
+      "args": ["serve"]
     }
   }
 }
