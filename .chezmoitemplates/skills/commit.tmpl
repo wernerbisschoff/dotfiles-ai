@@ -2,22 +2,31 @@
 name: commit
 description: "Use when creating commits"
 category: general_context_skills
-version: 4.1.0
+version: 4.5.0
 ---
 
 Create focused, reversible commits. Read the final User input section before following this workflow.
 
 ## Inspect
 
-1. Run `~/.agents/skills/commit/commit.sh pre`. Stop on failure or no changes.
+1. Run `~/.agents/skills/commit/commit.sh pre` in a single bash call. It now returns file lists plus
+   `status_short`, `cached_stat`, and `unstaged_stat`, so do NOT run separate git status/diff commands.
+   Keep the `pre` output (plan_target, files, conventions, status_short, cached_stat, unstaged_stat);
+   it determines whether to proceed.
+   `git status --short` already reports change types (M/A/D/R/??), so no separate name-status call is needed.
+   Cap output (`--stat`, `head -50`); never paste whole file contents into context.
+   Read selected untracked files separately.
+   For large, generated, or binary files, inspect type, size, and relevant metadata instead.
+   Example:
+   ```js
+   const pre = await tools.bash({command: "~/.agents/skills/commit/commit.sh pre", timeout: 30});
+   return pre.output;
+   ```
+   Stop on pre failure or no changes; keep its output and do not re-run it later.
 2. The `pre` output includes `conventions` excerpts (`null` when a file is absent). Follow their commit format,
    including required emojis. Only read the files directly when the excerpt is insufficient.
    Otherwise, follow the returned recent commit subjects.
-3. Inspect `git status --short`, `git diff --cached`, and `git diff` as needed for the intended scope.
-   Cap output (`--stat`, `--name-status`, `head -50`); never paste whole file contents into context.
-   Use name-status output to check deletions and renames. Read selected untracked files separately.
-   For large, generated, or binary files, inspect type, size, and relevant metadata instead.
-4. Existing staged changes define the default scope. Do not include unstaged changes from those files.
+3. Existing staged changes define the default scope. Do not include unstaged changes from those files.
    Without staged changes, select the files that belong to the request.
    Ask when scope is ambiguous. Never reset the user's index or silently expand the scope.
 
@@ -31,6 +40,10 @@ Create focused, reversible commits. Read the final User input section before fol
 - Run repository-required checks. Do not claim checks passed unless you ran them or have current evidence.
 
 ## Execute
+**Tool usage (mandatory):**
+- Inspect phase: exactly ONE bash call to `commit.sh pre`. Do not add separate git commands.
+- Execute phase: exactly ONE codemode call that awaits `tools.write` then `tools.bash` (post) sequentially.
+  NEVER split the write+post pair into separate tool calls. NEVER call bash directly for write or post.
 
 Write this JSON to the returned `plan_target` (the file does not exist yet; create it with the write tool or a heredoc):
 
@@ -50,10 +63,11 @@ Never bypass hooks, force-add ignored files, amend without permission, or add AI
 Never include secrets. Filename checks are only a warning layer, not a content secret scanner.
 Report the commit hash, subject, and remaining changes.
 
-Batch inspection into one block of parallel tool calls: `pre` plus `git status`/`diff`/`log` together.
 Do not probe for convention files separately; their excerpts come from `pre`.
 Write the plan to the returned `plan_target`, then run `post` — sequential, never parallel.
-Reuse one `pre` result for write+post; re-run `pre` only when the index changed or for an additional commit.
+Do not re-run `pre` between write and post; reuse the `plan_target` from step 1.
+For the write+post pair, use one codemode call that awaits `tools.write` (plan file) then `tools.bash` (post)
+sequentially, capturing both outputs; stop on any failure. Never split this pair into separate tool calls.
 
 ## Edge cases
 

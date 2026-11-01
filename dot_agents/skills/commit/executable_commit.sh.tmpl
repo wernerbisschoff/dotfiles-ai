@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Usage: commit.sh pre; PLAN_TARGET=<plan.json> commit.sh post
-# pre reports current paths, default scope, recent subjects, and a temporary plan path.
+# pre reports current paths, default scope, recent subjects, status, and diff stats, and a temporary plan path.
 # post accepts one {mode, files, message} plan and validates it against current paths.
 # Staged mode commits the entire index unchanged to preserve partial staging.
 # Worktree mode requires an empty index and stages only selected literal paths.
@@ -24,6 +24,9 @@ paths_json() { jq -Rs 'split("\u0000") | map(select(length > 0)) | sort | unique
 staged=$(git diff --cached --no-renames --name-only -z | paths_json)
 unstaged=$(git diff --no-renames --name-only -z | paths_json)
 untracked=$(git ls-files --others --exclude-standard -z | paths_json)
+status_short=$(git status --short)
+cached_stat=$(git diff --cached --stat)
+unstaged_stat=$(git diff --stat)
 mode=worktree
 [[ "$staged" == '[]' ]] || mode=staged
 conventions=$(jq -n '{}')
@@ -41,9 +44,11 @@ case "${1:-}" in
         jq -n --arg root "$root" --arg mode "$mode" \
             --arg plan_target "$plan_dir/plan.json" \
             --arg recent_commits "$(git log -10 --format=%s 2>/dev/null || true)" \
+            --arg status_short "$status_short" --arg cached_stat "$cached_stat" --arg unstaged_stat "$unstaged_stat" \
             --argjson staged "$staged" --argjson unstaged "$unstaged" --argjson untracked "$untracked" \
             --argjson conventions "$conventions" \
             '{root: $root, mode: $mode, plan_target: $plan_target, recent_commits: $recent_commits,
+              status_short: $status_short, cached_stat: $cached_stat, unstaged_stat: $unstaged_stat,
               conventions: $conventions,
               has_changes: ([$staged[], $unstaged[], $untracked[]] | length > 0),
               files: {staged: $staged, unstaged: $unstaged, untracked: $untracked}}'
