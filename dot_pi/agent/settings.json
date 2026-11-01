@@ -7,7 +7,7 @@
   "quietStartup": true,
   "lastChangelogVersion": "1.4.0",
   "packages": [
-    "npm:pi-hashline-edit",
+    "npm:pi-hashline-context-edit",
     "npm:pi-lmstudio",
     "npm:pi-commandcode-provider",
     "npm:pi-btw",
@@ -20,7 +20,7 @@
   ],
   "treeFilterMode": "user-only",
   "hideThinkingBlock": true,
-  "defaultThinkingLevel": "low",
+  "defaultThinkingLevel": "high",
   "defaultProvider": "opencode-go",
   "defaultModel": "beam-free",
   "tuiMode": "regular"
