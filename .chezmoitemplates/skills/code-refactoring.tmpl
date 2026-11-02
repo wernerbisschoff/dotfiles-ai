@@ -1,105 +1,47 @@
 ---
 name: code-refactoring
-description: "Use when: behavior-preserving code refactor"
-category: general_context_skills
-version: 1.1.0
+description: "Use when planning or implementing a behavior-preserving refactor."
 ---
 
-# CODE_REFACTORING
+# Refactor without changing behavior
 
-## [OBJECTIVE]
+Use the requested code, intent, and constraints.
+If the user asks for a plan or review, do not implement or commit changes.
 
-Produce a behavior-preserving structural transformation plan that eliminates specific code smells while maintaining functional parity and test passage.
+## Establish the boundary
 
----
+- Read the relevant implementation, callers, and tests.
+- Identify observable behavior: public interfaces, errors, side effects, ordering, and important performance constraints.
+- Record existing test results. Separate baseline failures from regressions.
+- When coverage is missing, add a small characterization test or another repeatable check before changing non-trivial logic.
+- If baseline failures prevent meaningful verification, report the limitation or ask for direction.
+  Do not silently repair unrelated bugs.
 
-## [TRIGGER_CONDITIONS]
+## Choose the smallest useful change
 
-- Identifying code smells (Arrow code, Long Methods, Primitive Obsession, Feature Envy).
-- Pre-feature preparation ("Make the change easy, then make the easy change").
-- Post-implementation cleanup (Red-Green-Refactor).
-- Technical debt reduction or readability improvement.
+Explain the concrete maintenance problem with source locations.
+Choose a technique that solves that problem without adding unnecessary layers or dependencies.
+A long function or parameter count is a review signal, not an automatic reason to add abstractions.
+Do not replace straightforward branching with polymorphism unless the use case benefits.
 
----
+Prefer clear names, focused functions, and explicit data flow.
+Keep comments that explain non-obvious reasons, constraints, or tradeoffs.
+Update documentation and comments when the refactor changes what they describe.
 
-## [INPUTS]
+## Implement when requested
 
-### [REQUIRED]
-- `target_code`: Smallest refactorable unit (function/module/class).
-- `intent`: Desired structural outcome (e.g., Extract Method, Decouple Logic).
+1. Describe the intended steps and the behavior each must preserve.
+2. Make one coherent change at a time.
+3. Run the relevant checks after each meaningful step.
+4. Review the final diff for unintended API, error, ordering, or side-effect changes.
+5. Run repository-required verification.
 
-### [CONTEXTUAL]
-- `test_state`: Existing coverage and current pass/fail status.
-- `constraints`: Public API stability, performance requirements, architectural invariants.
+Keep the original regression coverage.
+Do not rewrite failing assertions merely to accommodate a behavior change.
+If behavior must change, separate that work and obtain agreement on the new scope.
 
----
+## Report
 
-## [EXECUTION_SEQUENCE]
-
-### [STEP_1_BOUNDARY_DEFINITION]
-- Isolate the `target_code` boundary.
-- Map the [BEHAVIOR_SURFACE]: Public signatures, side effects, and invariants.
-
-### [STEP_2_SAFETY_VALIDATION]
-- If no tests: Define a [SAFETY_NET] (minimal verification steps).
-- If tests pass: Proceed to transformation.
-- If tests fail: Resolve bugs before refactoring.
-
-### [STEP_3_SMELL_DIAGNOSIS]
-Identify observable smells:
-- [LONG_METHOD]: `path:LINE`
-- [DEEP_NESTING]: `path:LINE`
-- [PRIMITIVE_OBSESSION]: `path:LINE`
-- [FEATURE_ENVY]: `path:LINE`
-
-### [STEP_4_TECHNIQUE_SELECTION]
-| Smell | Primary Technique |
-| :--- | :--- |
-| Multi-tasking function | Extract Method |
-| Deeply nested logic | Guard Clauses / Early Returns |
-| Branching on type | Replace Conditional with Polymorphism |
-| Parameter bloat (>4) | Introduce Parameter Object |
-| Magic values | Replace Magic Numbers with Constants |
-
-### [STEP_5_INCREMENTAL_PLAN]
-Produce a sequential, testable transformation sequence:
-1. [STEP_ID]: Description of atomic change.
-2. [DIFF_ANCHOR]: Targeted modification area.
-3. [VERIFICATION]: Specific test or check to run.
-
----
-
-## [OUTPUT_CONTRACT]
-
-```markdown
-# Refactor Plan: [TARGET_COMPONENT]
-
-## [DIAGNOSIS]
-- [SMELL_ID]: [Evidence at path:LINE] -> [Risk: LOW|MED|HIGH]
-
-## [STRATEGY]
-- [PRIMARY_TECHNIQUE]: [Rationale]
-- [INVARIANTS]: [List of behavior/signatures that MUST NOT change]
-
-## [TRANSFORMATION_STEPS]
-1. [STEP_1]: [Action] -> [Verify: Command/Test]
-2. [STEP_2]: [Action] -> [Verify: Command/Test]
-
-## [SAFETY_NET]
-[Minimal verification steps if no tests exist]
-```
-
----
-
-## [COMMIT]
-
-After all transformation steps are verified, use the commit skill with message format: `refactor(<target>): <description>`
-
----
-
-## [CONSTRAINTS]
-
-- [SND]: 0% conversational filler. No subjective quality judgements (e.g., "cleaner").
-- [SEMANTIC_ANCHORS]: All steps and smells MUST reference exact `path:LINE`.
-- [DETERMINISM]: Behavior MUST remain identical. Verify against [BEHAVIOR_SURFACE].
-- [LEXICAL_SPECIFICITY]: Use formal refactoring terminology (Fowler/Kerievsky).
+Summarize the maintenance benefit, changed files, and verification.
+State any behavior or performance claims that remain unverified.
+Stage or commit only when the user or repository workflow requires it.

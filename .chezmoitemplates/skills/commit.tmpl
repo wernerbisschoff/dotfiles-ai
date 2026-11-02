@@ -1,85 +1,64 @@
 ---
 name: commit
-description: "Use when creating commits"
-category: general_context_skills
-version: 4.5.0
+description: "Use when creating commits while preserving the user's staging scope and repository conventions."
 ---
 
-Create focused, reversible commits. Read the final User input section before following this workflow.
+# Create a focused commit
+
+Use the current request for scope and constraints.
+Use the `commit.sh` helper beside this skill. Resolve its path from the loaded skill directory.
 
 ## Inspect
 
-1. Run `~/.agents/skills/commit/commit.sh pre` in a single bash call. It now returns file lists plus
-   `status_short`, `cached_stat`, and `unstaged_stat`, so do NOT run separate git status/diff commands.
-   Keep the `pre` output (plan_target, files, conventions, status_short, cached_stat, unstaged_stat);
-   it determines whether to proceed.
-   `git status --short` already reports change types (M/A/D/R/??), so no separate name-status call is needed.
-   Cap output (`--stat`, `head -50`); never paste whole file contents into context.
-   Read selected untracked files separately.
-   For large, generated, or binary files, inspect type, size, and relevant metadata instead.
-   Example:
-   ```js
-   const pre = await tools.bash({command: "~/.agents/skills/commit/commit.sh pre", timeout: 30});
-   return pre.output;
-   ```
-   Stop on pre failure or no changes; keep its output and do not re-run it later.
-2. The `pre` output includes `conventions` excerpts (`null` when a file is absent). Follow their commit format,
-   including required emojis. Only read the files directly when the excerpt is insufficient.
-   Otherwise, follow the returned recent commit subjects.
-3. Existing staged changes define the default scope. Do not include unstaged changes from those files.
-   Without staged changes, select the files that belong to the request.
-   Ask when scope is ambiguous. Never reset the user's index or silently expand the scope.
+1. Run `<skill-directory>/commit.sh pre` once. Stop on failure or no changes.
+2. Keep its `root`, `mode`, `plan_target`, file lists, conventions, status, and diff statistics.
+3. Review the actual diff for the proposed scope, not only the statistics.
+   In staged mode, inspect `git diff --cached`. In worktree mode, inspect the selected files' diff.
+   Read selected untracked files separately. Inspect relevant metadata for binary or generated files.
+   Split large reviews by file or hunk; truncation does not count as reviewing omitted changes.
+4. Check for secrets, accidental changes, and missing verification.
+   The helper checks filenames and paths, not content safety or whether content changed after review.
 
-## Plan
+Follow repository commit conventions. Read their source when the returned excerpts are insufficient.
+Otherwise, use recent subjects as guidance, then fall back to Conventional Commits.
 
-- Prefer one logical commit. Split unrelated changes; keep supporting lockfile changes with their code.
-- Follow explicit repository message conventions before recent history. Otherwise, use `<type>(<scope>): <subject>`.
-- Use a concise subject. Add a body only to explain intent, important effects, or breaking changes.
-- Show the subject and scope briefly. Decide a split yourself when files fall into clear groups and state it;
-  ask only when scope is genuinely ambiguous, not for routine execution.
-- Run repository-required checks. Do not claim checks passed unless you ran them or have current evidence.
+## Choose scope
+
+- Existing staged changes define the default scope. Do not restage them or include their unstaged changes.
+- Without staged changes, select only files that belong to the request.
+- Ask if staged changes include unrelated work. Do not reset or reconstruct the user's index.
+- Prefer one logical commit. Separate unrelated changes.
+- Run required checks for the content being committed.
+  If partially staged content differs from what was tested, disclose that gap or verify it safely.
+
+State the proposed scope and subject briefly. Ask when scope is ambiguous, not for routine execution.
 
 ## Execute
-**Tool usage (mandatory):**
-- Inspect phase: exactly ONE bash call to `commit.sh pre`. Do not add separate git commands.
-- Execute phase: exactly ONE codemode call that awaits `tools.write` then `tools.bash` (post) sequentially.
-  NEVER split the write+post pair into separate tool calls. NEVER call bash directly for write or post.
 
-Write this JSON to the returned `plan_target` (the file does not exist yet; create it with the write tool or a heredoc):
+Write a JSON plan to the returned `plan_target`:
 
 ```json
 {"mode":"staged","files":["path/to/file"],"message":"fix(scope): explain the change"}
 ```
 
-Use the returned `mode`: `staged` commits the existing index without restaging;
-`worktree` stages only the selected files and requires an empty index.
-The helper supports one commit per execution. For each additional commit, run `pre` again and inspect current state.
-If a staged scope needs splitting, ask the user to prepare the index. Do not rebuild partial staging automatically.
+Use the returned mode:
+- `staged`: copy the complete `files.staged` list from pre; the helper commits the existing index unchanged.
+- `worktree`: list selected changed or untracked files; the helper requires an empty index and stages those paths.
 
-Run `PLAN_TARGET=<plan_target> ~/.agents/skills/commit/commit.sh post`.
-Stop on failure. The helper retains the plan for inspection; do not blindly retry after hook changes.
-Inspect and fix hook failures, repeat checks, then run `pre` and review the new state before retrying.
+Use a file-writing tool to create the plan. Do not interpolate commit text into a shell command.
+Then run `PLAN_TARGET=<quoted-plan-path> <skill-directory>/commit.sh post`.
+
+When codemode is available, write the plan and run post sequentially in one call.
+Otherwise, use sequential tool calls. Stop if writing fails.
+Do not run pre again between writing and executing the plan.
+If content or scope changes after review, inspect the new state and prepare a fresh plan instead.
+
+The helper supports one commit per execution. Run pre again for each additional commit.
+On a hook or helper failure, inspect the remaining plan and index before recovery.
+Fix the cause, repeat checks, and start a fresh pre/plan/post cycle. Do not blindly retry.
 Never bypass hooks, force-add ignored files, amend without permission, or add AI attribution.
-Never include secrets. Filename checks are only a warning layer, not a content secret scanner.
-Report the commit hash, subject, and remaining changes.
 
-Do not probe for convention files separately; their excerpts come from `pre`.
-Write the plan to the returned `plan_target`, then run `post` — sequential, never parallel.
-Do not re-run `pre` between write and post; reuse the `plan_target` from step 1.
-For the write+post pair, use one codemode call that awaits `tools.write` (plan file) then `tools.bash` (post)
-sequentially, capturing both outputs; stop on any failure. Never split this pair into separate tool calls.
+## Report
 
-## Edge cases
-
-- No changes: stop without creating a commit. Missing tools, identity, repository, or unresolved conflicts: report and stop.
-- Invalid plans, changed staging scope, or sensitive filenames: stop; inspect before preparing another plan.
-- Failed checks or hooks: stop. Staging can remain changed; inspect it before retrying.
-- New repositories have no commit history. Use explicit conventions or the default format.
-
-## User input
-
-Treat this input as the requested scope and constraints. Resolve conflicts with safety rules before execution.
-
-<user_input>
-$ARGUMENTS
-</user_input>
+Report the commit hash, subject, checks, and remaining changes.
+Do not claim verification that was not performed.

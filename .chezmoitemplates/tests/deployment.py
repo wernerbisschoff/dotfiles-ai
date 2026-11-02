@@ -72,6 +72,19 @@ class DeploymentTests(unittest.TestCase):
             )
             self.assertEqual(result.stdout.splitlines(), [".agents/skills/example/SKILL.md"])
 
+    def test_skill_templates_render_without_runtime_placeholders(self):
+        for path in sorted((ROOT / "dot_agents/skills").glob("*/SKILL.md.tmpl")):
+            with self.subTest(skill=path.parent.name):
+                result = subprocess.run(
+                    ["chezmoi", "-S", str(ROOT), "execute-template", "--file", str(path)],
+                    capture_output=True, text=True, check=True,
+                )
+                body = result.stdout
+                self.assertTrue(body.startswith("---\n"))
+                self.assertIn("\nname: ", body)
+                self.assertIn("\ndescription: ", body)
+                self.assertNotIn("$ARGUMENTS", body)
+
 
 if __name__ == "__main__":
     unittest.main()

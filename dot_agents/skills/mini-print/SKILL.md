@@ -18,15 +18,18 @@ Use this skill when the user:
 ## [INPUTS]
 
 - `minis` (required): list of mini names (`Dragonborn_Barbarian` style) OR paths to local PNG files
-- `token` (API only): PrintableHeroes bearer JWT, supplied by the user at runtime
+- API access: a user-configured credential available locally; local PNG inputs do not require authentication.
 
 ## [EXECUTION_SEQUENCE]
 
 ### [STEP_1_AUTH]
 
-- Store the token with `write` to `/tmp/ph_token`, `chmod 600`. Never `echo` it or let it appear in logs.
-- Every API call sends header `Authorization: Bearer $TOK`.
-- Base URL: `https://api.printableheroes.com`. Frontend JS (Next.js chunks) documents the contract if endpoints change.
+- Use a user-provisioned credential store or environment variable. Ask the user to configure it locally if unavailable.
+- Load the token inside the requesting process and construct the bearer header there.
+- Do not put token values in chat, tool arguments, command-line arguments, logs, or generated files.
+- Do not write credentials to a shared temporary path or enable HTTP header tracing.
+- Send credentials only to `https://api.printableheroes.com`; do not forward them to another host on redirects.
+- The frontend's Next.js chunks can help verify the API contract if endpoints change.
 
 ### [STEP_2_API_REFERENCE]
 

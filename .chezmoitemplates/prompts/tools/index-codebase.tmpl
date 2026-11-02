@@ -1,44 +1,40 @@
-## [OBJECTIVE]
+# Maintain the workspace index
 
-Run the `zg` CLI to build, refresh, or inspect the zvec-grep index for the current workspace. zg is installed globally via npm (`@zvec/zvec-grep`). The MCP tool `zvec_grep_search` only searches — index lifecycle lives here.
+Use the current request to identify the workspace and action.
+When invoked as a prompt template, the supplied arguments appear below:
 
-## [ARGUMENT_PARSING]
-
-`$ARGUMENTS` is whitespace-separated tokens:
-
-| Token     | Action                                        |
-|-----------|-----------------------------------------------|
-| `force`   | `zg index --rebuild` (full rebuild)           |
-| `drop`    | `zg index --drop --yes` (remove the index)    |
-| `status`  | `zg status` (inspect only, no changes)        |
-| *(none)*  | `zg index` (create or incremental update)     |
-
-Unknown tokens: ignore them. Empty `$ARGUMENTS` is the common case — plain incremental index.
-
-## [EXECUTION]
-
-1. **Announce** — print one line:
-   ```
-   → zg <chosen command>
-   ```
-2. **Run** the chosen command via `bash`. Do not wrap it in `eval`; call it directly.
-3. **Report** — print the command's output verbatim under `## Result`.
-
-## [OUTPUT]
-
-Your entire response is exactly this block:
-
-```markdown
-→ zg <chosen command>
-
-## Result
-<command output, unmodified>
-```
-
-Nothing else. No follow-up suggestions.
-
-<context>
-<user_input>
 $ARGUMENTS
-</user_input>
-</context>
+
+Supported actions:
+- No action: create a missing index or refresh an existing one.
+- `status`: inspect without changing the index.
+- `force`: propose a full rebuild.
+- `drop`: propose deleting the index.
+
+Reject unknown or conflicting actions rather than silently choosing a different operation.
+Confirm the intended workspace before changing it.
+A request for exact search alone does not require an index.
+
+## Check and execute
+
+Read installed `zg` help when command behavior is uncertain.
+Use `zg status` to inspect the current workspace.
+Index lifecycle operations use the CLI, not the MCP search tool.
+
+For creation or refresh, use the installed version's supported mechanism.
+Reuse the existing embedding schema and file-selection settings.
+Reuse an existing background refresh rather than starting another.
+Do not assume an existing-index operation is incremental without checking its semantics.
+
+Use the configured approved embedding provider.
+Ask before choosing a new provider, downloading a model, or incurring unexpected charges.
+Do not broaden hidden-file, ignored-file, or secret access.
+Keep index artifacts out of commits and chezmoi deployment.
+
+Before a full rebuild or deletion, explain the affected workspace and ask for confirmation.
+Only then use `zg index --rebuild` or `zg index --drop --yes` in that workspace.
+An action token alone does not bypass this confirmation.
+
+Report the action, exit status, and relevant output.
+Redact secrets and summarize large output.
+If the operation fails, report the failure; do not escalate to a rebuild or deletion automatically.

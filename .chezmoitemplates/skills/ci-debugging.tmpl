@@ -1,158 +1,59 @@
 ---
 name: ci-debugging
-description: "Use when: CI/build failing, tests pass locally but fail on CI, env vars missing on CI"
-category: GENERAL_CONTEXT_SKILLS
-version: 1.0.0
+description: "Use when investigating failed CI jobs, builds, or differences between local and CI results."
 ---
 
-# CI Debugging Skill
+# Diagnose CI failures
 
-## [OBJECTIVE]
+Use the current request to identify the repository, run, branch, or pull request.
+A pull request is not required. Ask only when the failure target is unclear.
+Use the project's CI provider and tools; the examples below apply to GitHub Actions.
 
-Diagnose and fix CI failures by following a systematic investigation workflow using GitHub CLI, with minimal code changes and deterministic validation.
+## Find current evidence
 
-## [TRIGGER_CONDITIONS]
+1. Identify the failing workflow, job, event, and commit SHA.
+   Confirm that the run belongs to the intended repository and revision.
+2. For GitHub, use `gh pr checks <pr>` or inspect recent runs:
+   `gh run list --branch <branch> --limit 10 --json databaseId,headSha,status,conclusion,workflowName,url`.
+   Use `databaseId`, not the display run number, for subsequent run commands.
+3. Inspect failed jobs with `gh run view <run-id>` and `gh run view <run-id> --log-failed`.
+   Select relevant log sections with surrounding context. Expand the read when a truncated section misses the cause.
+4. Trace the first causal failure, not only downstream errors or the last log lines.
+   Distinguish cancellation, infrastructure failure, missing dependencies, permission errors, and application failures.
+5. Compare workflow configuration, runtime versions, working directories, dependencies, and environment variable names.
+   Check secret availability without printing values. Redact sensitive log excerpts.
 
-Use this skill when the user:
+Batch independent reads when tools support it.
+Resolve run IDs before requesting their logs; do not parallelize dependent discovery steps.
 
-- Reports "CI is failing", "build failed", "tests failed", or "pipeline broken"
-- Reports that CI is red, failing, or broken on a PR or branch
-- Mentions env vars, secrets, or environment differences between local and CI
-- Provides a PR link or PR number with CI issues
-- Mentions a specific job, step, or workflow that failed
-- Asks to "investigate", "debug", "fix", or "resolve" a CI failure
-- Reports that tests pass locally but fail on CI
-- Reports missing environment variables or configuration issues on CI
-- Asks why CI is failing or what's causing the failure
+## Diagnose and change
 
-## [INPUTS]
+- Reproduce with the repository's commands when possible.
+- Compare the affected revision with relevant base or earlier runs.
+  A passing base is evidence, not proof that every failure was introduced by this change.
+- State the cause and uncertainty. Do not label a failure flaky solely because a retry passed.
+- Make the smallest maintainable fix within the requested scope.
+- Report unrelated baseline failures rather than silently expanding the task.
+- Do not weaken tests, skip required checks, or expose credentials to obtain a green result.
 
-- `pr_identifier` (required): PR number, URL, or `{owner}/{repo}#{pr}` format
-- `failure_scope` (optional): specific job name, workflow name, or step that failed; if not provided, inspect all failures
-- `constraints` (optional): branch protection rules, required status checks, merge requirements, CI runner constraints
+## Verify the correct revision
 
-## [EXECUTION_SEQUENCE]
+Run the relevant local checks first.
+A rerun of an existing workflow tests its original revision, not uncommitted local fixes.
+Do not present that rerun as verification of new code.
 
-Batch STEP_1 lists plus STEP_2 run views and log tails (max 3 runs) into one parallel `codemode` call.
+Commit, push, dispatch, or rerun workflows only when authorized.
+Consider workflow side effects, such as deployments, before triggering a run.
+After new code reaches CI, verify the run's SHA and intended event.
+Some pull request checks test a generated merge commit; record that distinction.
 
-### [STEP_1_FETCH_PR_AND_FAILURE_SUMMARY]
+Use the harness's background monitoring when available.
+For GitHub, `gh run watch <run-id> --exit-status` can monitor an authorized run.
+If waiting is unavailable or times out, report pending status rather than success.
+If the fixed revision has not run in CI, report local verification separately and state that CI remains unverified.
 
-1. Run `gh pr view {pr_identifier} --json number,title,state,headRefName,baseRefName,statusCheckRollup,url` to get PR context
-2. Extract `headRefName` (head branch) and `baseRefName` (base branch)
-3. Run `gh run list --branch {headRefName} --limit 10 --json status,conclusion,name,workflowName,headBranch,runNumber,createdAt` to get all recent runs
-4. Filter for runs where `conclusion` is `failure` or `cancelled`
-5. If no failures found on head branch, run `gh run list --branch {baseRefName} --limit 5` to check if failure is pre-existing on base
+## Report
 
-**Verification:** Confirm at least one failing run identified
-
-### [STEP_2_GET_FAILED_RUN_DETAILS]
-
-For each failing run (max 3, prioritize by recency):
-
-1. Run `gh run view {run_id} --json jobs,workflowName,headBranch,event,runNumber,createdAt` (single command, no extra flags)
-2. Extract the `jobs` array — each job has `name`, `conclusion`, `steps`
-3. Identify failed jobs by `conclusion === "failure"`
-4. For failed jobs, extract `steps` array and find steps with `conclusion === "failure"` to identify the exact failing step
-5. Get failure logs with `gh run view {run_id} --log 2>&1 | tail -n 300` (most relevant output is at the end)
-
-**Verification:** Each failing job has a root step identified
-
-### [STEP_3_PARSE_LOGS_FOR_ERROR]
-
-1. Pipe log output through `grep -E "^(ERROR|Failed|FAILED|error:|panic|Traceback|Process completed)" -i` to extract error lines
-2. If that returns nothing, use `grep -E "(failure|error|fail)" -i | tail -n 20`
-3. Classify failure type from error patterns:
-
-| Error Pattern | Likely Type |
-|---------------|-------------|
-| `AssertionError`, `Expect`, `test.*failed` | `Test_Failure` |
-| `compilation error`, `cannot find`, `syntax error` | `Build_Failure` |
-| `format`, `lint`, `Style` | `Linter_Violation` |
-| `timed out`, `killed`, `Process.*exceeded` | `Timeout` |
-| `not found`, `command not found`, `exit code 127` | `Permission_Denied` |
-| `OOM`, `out of memory`, `disk.*full` | `Resource_Exhaustion` |
-| `secret.*not`, `missing.*env`, `undefined.*variable` | `Configuration_Error` |
-
-4. Extract the first meaningful error line with context (5 lines before/after if available)
-
-**Verification:** Error type classified and error snippet extracted
-
-### [STEP_4_DIAGNOSE_VS_INTRODUCE]
-
-1. Compare head branch vs base branch: check if files touched by PR intersect with files mentioned in error
-2. If failure is pre-existing (present on base branch), do NOT modify test/build logic
-3. If PR changes introduced the failure, apply the minimum fix
-4. If fix requires >20 lines, surface for user approval first
-
-**Verification:** Fix intent is minimal and targeted
-
-### [STEP_5_IMPLEMENT_FIX]
-
-1. Apply the minimal fix using Edit/Create tools
-2. Do not refactor unrelated code
-3. Match existing code style
-
-**Verification:** Changes isolated to failing component
-
-### [STEP_6_VALIDATE_VIA_RE_RUN]
-
-1. Run `gh run rerun {run_id}` to re-run the failed workflow
-2. Poll with `sleep 15 && gh run view {run_id} --json conclusion,status` every 15s until `conclusion` is not `"in_progress"`
-3. Report final `conclusion`
-
-**Verification:** Re-run completes with success/failure
-
-## [OUTPUT_CONTRACT]
-
-Return a single JSON object:
-
-```json
-{
-  "Summary": {
-    "PR_Number": "number",
-    "PR_Title": "string",
-    "Head_Branch": "string",
-    "Base_Branch": "string",
-    "CI_Status": "failing|passing|unknown",
-    "Failure_Count": "number"
-  },
-  "Diagnoses": [
-    {
-      "Job_Name": "string",
-      "Failing_Step": "string",
-      "Type": "Test_Failure|Build_Failure|Linter_Violation|Timeout|Permission_Denied|Resource_Exhaustion|Configuration_Error|Flaky_Test",
-      "Root_Cause": "string",
-      "Evidence": {
-        "Log_Snippet": "string (max 5 lines)"
-      },
-      "Fix_Applied": {
-        "Description": "string",
-        "Files_Changed": ["string"],
-        "Lines_Changed": "number"
-      },
-      "Re_Run_Status": "pending|success|failure|skipped"
-    }
-  ],
-  "Next_Actions": [
-    "string"
-  ]
-}
-```
-
-## [VALIDATION_LOOP]
-
-- After implementing a fix, always re-run CI to confirm
-- If multiple failures exist, fix one at a time and re-run after each
-- Do not assume a fix works without a re-run confirmation
-
-## [EDGE_CASE_HANDLING]
-
-- **NO_PR_INPUT**: Ask user for PR number or URL before proceeding
-- **AMBIGUOUS_FAILURE**: If multiple job failures with different root causes, prioritize by:
-  1. Failures that block merge (required checks)
-  2. Failures in code paths modified by the PR
-  3. Infrastructure/configuration failures
-- **UNAUTHORIZED**: If `gh` CLI lacks permissions, report the permission requirement and suggest user run `gh auth status`
-- **WORKFLOW_NOT_FOUND**: If PR has no CI status, check if `.github/workflows/` exists in the repo and if branch has CI configured
-- **RERUN_NOT_AVAILABLE**: Some runners may not support re-run; document and suggest manual trigger
-- **CANCELED_RUN**: If job was cancelled (not failed), investigate cancellation reason
+State the failing revision, cause with evidence, changes, local checks, and CI outcome.
+Include the run link and any unresolved uncertainty.
+Use structured output only when the caller requests it.
