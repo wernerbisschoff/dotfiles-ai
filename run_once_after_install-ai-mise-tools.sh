@@ -24,7 +24,7 @@ fi
 
 eval "$(mise activate bash)"
 
-mise use -g pi@latest herdr@latest hunk@latest
+mise use -g --remove pi npm:@earendil-works/pi-coding-agent@latest herdr@latest hunk@latest
 mise install
 
 log_success "AI mise tools registered globally (pi, herdr, hunk)"
