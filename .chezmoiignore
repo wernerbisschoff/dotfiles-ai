@@ -4,6 +4,7 @@
 ./AGENTS.md
 ./CONTRIBUTING.md
 ./README.md
+./BILLION-CONTEXT.md
 ./bootstrap.sh
 ./LICENSE
 
@@ -18,6 +19,7 @@
 
 # === Pi ===
 .pi/*
+!.pi/acp.json
 !.pi/agent/
 !.pi/agent/AGENTS.md
 !.pi/agent/extensions
