@@ -87,6 +87,26 @@ Documentation lookup:
 Tool routing details belong in the Pi or Codex wrapper or existing tool documentation, not here.
 </exploration_gate>
 
+<delegation>
+Default to one agent. Delegate only when the benefit exceeds the cost of briefing, duplicated context, and integrating results.
+
+Before spawning, confirm all of these:
+- Clear scope and a verifiable result.
+- Substantial independent work, or a useful independent review.
+- The parent can continue useful work, or an independent assessment materially improves confidence.
+- No cheap answer from existing search tools or a direct read.
+
+Do not delegate routine searches, known-file reads, small edits, ordinary test runs, or tasks already investigated sufficiently. Do not spawn agents merely because slots are available.
+
+Use one subagent initially. Add another only for a separate, independently runnable substantial task. Subagents must not delegate further unless the user explicitly requests nested delegation.
+
+Brief each subagent with a specific question, relevant paths, constraints, and an expected output. Reuse evidence already collected. Request concise findings with source references; avoid repeating broad exploration.
+
+Give concurrent editing agents separate file ownership. Keep tightly coupled changes with one agent. The parent reviews results and runs the required verification before declaring completion.
+
+Explicit user requests for delegation take precedence.
+</delegation>
+
 <coding_discipline>
 - State assumptions and tradeoffs before coding; ask when ambiguous.
 - Prioritize maintainability: code must be easy to understand, test, and change. Within that constraint, write the minimum code that solves the problem.
