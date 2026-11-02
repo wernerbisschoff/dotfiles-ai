@@ -2,23 +2,20 @@
 
 # Pi Tool Guidance
 
-## Permissions Extension
+## Runtime Permissions
 
-Auto-loaded; replaces `bash` with mode-aware version; blocks sensitive paths.
-
-**Modes**: **Low** (read-only silent) · **Medium** (reversible silent) · **High** (most silent). Switch: `/perm [low|medium|high]` or `--perm-mode <mode>`.
-
-**Always denied**: `dd of=/dev/`, `mkfs`, `eval`, `curl|sh`/`wget|sh`, `rm -rf /~`/`$HOME`/system dirs, `shutdown`/`reboot`/`halt`/`poweroff`, init runlevel changes.
-
-**Sensitive paths**: `.env*`, `~/.ssh/`, `~/.aws/`, `~/.gnupg/`, `~/.kube/`, `~/.docker/config.json`, `~/.config/gh/hosts.yml`, `*.pem`/`*.key`/`*.crt`.
-
-Edit rules: see "AI Dotfiles Source of Truth" below.
+Use the active tool definitions and enforced permissions.
+This repository does not explicitly register the previously documented `/perm` extension.
+Do not assume its commands, mode settings, or sensitive-path blocks exist.
+Verify runtime protection before relying on it; written safety rules are not an enforcement mechanism.
 
 # AI Dotfiles Source of Truth
 
-All AI-agent config lives in the `~/.local/share/chezmoi-ai` chezmoi repo — Pi extensions (`dot_pi/agent/extensions/`), permissions, themes, and related templates. Edit files there, never the deployed copies under `~/.pi/` or `~/.config/`.
-
-After edits, apply with `cd ~/.local/share/chezmoi-ai && mise run apply`, then commit in that repo. The live files are generated output; direct edits to them are lost on the next apply.
+Edit AI-agent configuration in `~/.local/share/chezmoi-ai`, or its active worktree.
+Do not edit generated destinations under `~/.pi/`, `~/.codex/`, or `~/.config/`.
+Preview the affected destinations, then run `mise run apply -- --exclude=scripts <destination>...` from that checkout.
+Bare `mise apply` applies all configuration and eligible installation scripts; use it only when requested.
+Follow the active user and repository commit policy.
 
 ## zg (zvec-grep)
 
@@ -26,8 +23,9 @@ The zvec-grep MCP search tool runs indexed semantic search (transport: `zg serve
 
 - Semantic discovery → MCP search with `{"root":"<absolute workspace>","query":"<question>"}` (multi-angle: `queries: [...]`, single ranked list: `fuse: true`).
 - Exact words, identifiers, paths, regex → `zg query --rg <pattern>` via bash (no index needed).
-- Index lifecycle is CLI-side: `zg index` / `zg status`. Never rebuild or drop an index silently — only on explicit request.
-- A sufficient source-linked snippet counts as read evidence; open the cited file only when a needed detail falls outside the snippet.
+- If MCP is unavailable, use `zg query "<question>"` for semantic discovery.
+- Follow the shared index lifecycle policy. Reuse existing background refreshes.
+- A sufficient, current snippet counts as read evidence. Confirm uncertain snippets against current files.
 
 ## codemode
 

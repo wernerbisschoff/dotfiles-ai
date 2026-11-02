@@ -7,7 +7,6 @@
 set -euo pipefail
 
 # Colors
-RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
@@ -31,10 +30,10 @@ seed_python() {
 	log_info "Seeding Python docs..."
 
 	if has pip; then
-		libref install pip/fastapi 2>/dev/null && log_success "  FastAPI" || log_warn "  FastAPI failed"
-		libref install pip/django 2>/dev/null && log_success "  Django" || log_warn "  Django failed"
-		libref install pip/pydantic 2>/dev/null && log_success "  Pydantic" || log_warn "  Pydantic failed"
-		libref install pip/flask 2>/dev/null && log_success "  Flask" || log_warn "  Flask failed"
+		if libref install pip/fastapi 2>/dev/null; then log_success "  FastAPI"; else log_warn "  FastAPI failed"; fi
+		if libref install pip/django 2>/dev/null; then log_success "  Django"; else log_warn "  Django failed"; fi
+		if libref install pip/pydantic 2>/dev/null; then log_success "  Pydantic"; else log_warn "  Pydantic failed"; fi
+		if libref install pip/flask 2>/dev/null; then log_success "  Flask"; else log_warn "  Flask failed"; fi
 	else
 		log_warn "  pip not found — skipping Python packages"
 	fi
@@ -47,10 +46,10 @@ seed_python() {
 seed_frontend() {
 	log_info "Seeding frontend docs..."
 
-	libref install npm/react 2>/dev/null && log_success "  React" || log_warn "  React failed"
-	libref install npm/next 2>/dev/null && log_success "  Next.js" || log_warn "  Next.js failed"
-	libref install npm/typescript 2>/dev/null && log_success "  TypeScript" || log_warn "  TypeScript failed"
-	libref install npm/tailwind 2>/dev/null && log_success "  Tailwind CSS" || log_warn "  Tailwind CSS failed"
+	if libref install npm/react 2>/dev/null; then log_success "  React"; else log_warn "  React failed"; fi
+	if libref install npm/next 2>/dev/null; then log_success "  Next.js"; else log_warn "  Next.js failed"; fi
+	if libref install npm/typescript 2>/dev/null; then log_success "  TypeScript"; else log_warn "  TypeScript failed"; fi
+	if libref install npm/tailwind 2>/dev/null; then log_success "  Tailwind CSS"; else log_warn "  Tailwind CSS failed"; fi
 }
 
 # =============================================================================
@@ -61,19 +60,25 @@ seed_elixir() {
 	log_info "Seeding Elixir ecosystem docs..."
 
 	# Elixir core — docs embedded in source files
-	libref add https://github.com/elixir-lang/elixir/tree/v1.20-latest --name elixir 2>/dev/null \
-		&& log_success "  Elixir" \
-		|| log_warn "  Elixir failed"
+	if libref add https://github.com/elixir-lang/elixir/tree/v1.20-latest --name elixir 2>/dev/null; then
+		log_success "  Elixir"
+	else
+		log_warn "  Elixir failed"
+	fi
 
 	# Phoenix — hexdocs website (libref follows sitemap → 811 sections)
-	libref add https://phoenix.hexdocs.pm/ 2>/dev/null \
-		&& log_success "  Phoenix" \
-		|| log_warn "  Phoenix failed"
+	if libref add https://phoenix.hexdocs.pm/ 2>/dev/null; then
+		log_success "  Phoenix"
+	else
+		log_warn "  Phoenix failed"
+	fi
 
 	# LiveView — hexdocs website (libref follows llms.txt → 441 sections)
-	libref add https://phoenix-live-view.hexdocs.pm/ 2>/dev/null \
-		&& log_success "  Phoenix LiveView" \
-		|| log_warn "  Phoenix LiveView failed"
+	if libref add https://phoenix-live-view.hexdocs.pm/ 2>/dev/null; then
+		log_success "  Phoenix LiveView"
+	else
+		log_warn "  Phoenix LiveView failed"
+	fi
 }
 
 seed_python

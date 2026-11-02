@@ -8,29 +8,17 @@
 ./bootstrap.sh
 ./LICENSE
 
-# === OpenCode ===
-.config/opencode/*
-!.config/opencode/command
-!.config/opencode/skills
-!.config/opencode/agent
-!.config/opencode/opencode.json
-!.config/opencode/AGENTS.md
-!.config/opencode/dcp.jsonc
-
 # === Pi ===
 .pi/*
 !.pi/acp.json
 !.pi/agent/
 !.pi/agent/AGENTS.md
 !.pi/agent/extensions
-!.pi/agent/extensions/**
 !.pi/agent/themes
-!.pi/agent/themes/**
 !.pi/agent/skills
 !.pi/agent/prompts
 !.pi/agent/mcp.json
-# Pi rewrites settings.json at session start (live runtime state) — never
-# render over it. dot_pi/agent/settings.json.tmpl stays as starter config.
+# Settings are managed. Pi also updates them at runtime; review changes before applying.
 !.pi/agent/settings.json
 
 # Pi web-search config lives under ~/.config/pi via XDG
@@ -42,10 +30,13 @@ memory.md
 *.bak
 .taskmaster/
 
-# === Shared agent skills ===
-!.agents/
-!.agents/skills/
-!.agents/skills/**
-
 # Codex automations are managed outside chezmoi
 ./.codex/automations/**
+
+# Runtime artifacts. Avoid broad ! exceptions: they override ignore patterns.
+**/__pycache__
+**/__pycache__/**
+**/*.pyc
+**/*.pyo
+.zvec-grep/**
+.codebase-index/**

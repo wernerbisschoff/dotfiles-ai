@@ -14,7 +14,6 @@ Codex agents: shared skills, prompts, extensions, and themes.
 | `dot_codex/**` | `~/.codex/` (AGENTS.md, rules; skills symlinked from `~/.agents/skills`) |
 | `.chezmoitemplates/**` | shared template source of truth |
 | `dot_config/pi/**` | `~/.config/pi/` (web-search config) |
-| `dot_config/opencode/**` | `~/.config/opencode/` (skills symlinked from `~/.agents/skills`) |
 | `dot_config/herdr/**`, `dot_config/hunk/**` | `~/.config/herdr/`, `~/.config/hunk/` |
 | `dot_plannotator/**` | `~/.plannotator/` |
 | `dot_config/zsh/conf.d/060-pi-theme-sync.zsh`, `070-herdr.zsh` | `~/.config/zsh/conf.d/` |
@@ -25,10 +24,21 @@ the AI repo owns no OS/shell targets — the split is disjoint.
 ## Apply
 
 ```bash
-cd ~/.local/share/chezmoi-ai && mise run apply   # == chezmoi -S ~/.local/share/chezmoi-ai apply -v
+cd ~/.local/share/chezmoi-ai
+mise apply
 ```
 
-Tasks: `mise run diff|status|edit|verify|lint|format|fix|install`.
+Bare `mise apply` applies all configuration and eligible installation scripts.
+To apply selected files without installers:
+
+```bash
+mise run apply -- --exclude=scripts ~/.pi/agent/AGENTS.md ~/.codex/AGENTS.md
+```
+
+It uses the active checkout, including worktrees.
+Review changes with `mise run diff` before applying.
+
+Tasks: `mise run diff|status|edit|verify|test|lint|format|fix|install`.
 
 ## Bootstrap
 
@@ -72,10 +82,9 @@ cp /tmp/plannotator-custom ~/.local/bin/plannotator
 
 ## Layout notes
 
-- `.chezmoitemplates/` is the source of truth: skills, prompts, rules, and
-  the shared `AGENTS.md` that renders into `dot_pi/`, `dot_codex/`, and
-  `dot_config/opencode/`. Never edit the generated `dot_*` outputs directly —
-  edit the `.chezmoitemplates/` core and re-apply.
+- `.chezmoitemplates/` holds shared skills, prompts, rules, and agent guidance.
+  Tracked `dot_*` sources include these templates or contain standalone configuration.
+  Chezmoi generates destinations under `$HOME`; never edit those generated files directly.
 - Root `AGENTS.md` guides agents editing this repo.
 - OS/shell/git targets (zsh, starship, ghostty, gitconfig, SSH) live in the
   main repo — do not move them here.

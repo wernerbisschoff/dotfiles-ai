@@ -9,7 +9,6 @@
 
 set -euo pipefail
 
-RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
@@ -43,7 +42,7 @@ if [[ ! -d "$AI_SRC/.git" ]]; then
 	git clone https://github.com/wernerbisschoff/dotfiles-ai.git "$AI_SRC"
 fi
 
-# Apply the AI repo (renders ~/.pi, ~/.codex, ~/.agents, ~/.config/opencode, ...).
+# Apply the AI repo (renders ~/.pi, ~/.codex, ~/.agents, ...).
 log_info "Applying chezmoi from wernerbisschoff/dotfiles-ai..."
 chezmoi -S "$AI_SRC" apply
 

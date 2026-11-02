@@ -24,48 +24,40 @@ targets here.
 |---|---|
 | `~/.agents/skills/*/SKILL.md` | `dot_agents/skills/*/SKILL.md.tmpl` |
 | `~/.codex/AGENTS.md` | `dot_codex/AGENTS.md.tmpl` |
-| `~/.pi/agent/settings.json` | `dot_pi/agent/settings.json.tmpl` |
-| `~/.config/opencode/opencode.json` | `dot_config/opencode/opencode.json` |
+| `~/.pi/agent/settings.json` | `dot_pi/agent/settings.json` |
 
-## Slash Commands vs Skills (`tools-*` rule)
+## Slash Commands vs Skills
 
-`tools-*` = slash commands by default, **never skills**.
-Commands load on `/<name>`; skills load eagerly and burn context.
-Exception only if it must run a scripted hook `pre`/`post` — even then prefer the command form.
+Prefer slash commands for short, explicitly invoked `tools-*` prompts.
+Use skills for reusable workflows with supporting scripts or reference files.
+Pi and Codex load skill metadata first, then load the body when needed.
+Write specific skill descriptions so the agent can select the correct workflow.
 
 ## Editing Workflow
 
-1. Edit source files in this directory
-2. Apply only the changed files, never a full `chezmoi apply --force`:
+1. Edit source files in the active checkout.
+2. Preview the affected destination files.
+3. For agent edits, apply only those targets and explicitly exclude installation scripts.
 
    ```bash
-   chezmoi -S ~/.local/share/chezmoi-ai apply <target-file>...   # pinned to THIS source dir
-   chezmoi -S ~/.local/share/chezmoi-ai apply dot_pi/agent/settings.json   # source path
-   mise run apply                                                # same, from this repo dir
+   # Run from this checkout, including when using a worktree.
+   chezmoi -S "$PWD" diff ~/.pi/agent/AGENTS.md ~/.codex/AGENTS.md
+   mise run apply -- --exclude=scripts ~/.pi/agent/AGENTS.md ~/.codex/AGENTS.md
+   chezmoi -S "$PWD" status ~/.pi/agent/AGENTS.md ~/.codex/AGENTS.md
    ```
 
-   **Never run a bare `chezmoi apply` here** — without `-S` it targets
-   `~/.local/share/chezmoi` (the OS repo). Always pin `-S ~/.local/share/chezmoi-ai`
-   or use `mise run apply`.
-
-3. `chezmoi -S ~/.local/share/chezmoi-ai diff` / `status` to verify.
-
-**When you must re-render generated files (e.g. `.chezmoitemplates/**`), apply
-only those targets** (`chezmoi -S ~/.local/share/chezmoi-ai apply dot_pi/`),
-not the whole tree.
-
-**Worktrees**: if `$PWD` contains `.worktrees/`, pass `-S "$PWD"` to all chezmoi commands.
+Never run bare `chezmoi apply`: its default source can be the OS repo.
+Use `-S` with the active checkout for direct chezmoi commands.
+Bare `mise apply` applies all configuration and eligible installation scripts from this checkout.
+Use full apply only when requested. Never run a full forced apply.
+Use destination paths, or add `--source-path` when supplying source paths.
+Review live settings changes before applying `~/.pi/agent/settings.json`; Pi also writes this managed file.
 
 ## Template Syntax (CRITICAL)
 
-**Never use `.args.X` / `.Args.X`** in agent prompt templates — they fail with
-`map has no entry for key "args"`. Always use:
-
-```chezmoitmpl
-$ARGUMENTS
-```
-
-Applies to ALL user-provided arguments.
+Never use `.args.X` or `.Args.X` in chezmoi templates; those variables do not exist.
+Use `$ARGUMENTS` only in prompt templates whose agent runtime supports substitution.
+Skill bodies receive the current request through the harness; do not assume placeholder expansion.
 
 **Destination conditionals**: `{{ if contains "/.codex/" .chezmoi.targetFile }}Codex content{{ end }}`.
 
@@ -82,21 +74,17 @@ Applies to ALL user-provided arguments.
 
 Reference rendered files by name **without** the prefix.
 
-## Generated Files (DO NOT Edit)
+## Source Templates and Generated Destinations
 
-Auto-overwritten by `chezmoi apply`:
+`dot_*` files are tracked chezmoi sources, not generated output.
+Edit `.chezmoitemplates/skills/*.tmpl` for shared skill bodies.
+Edit `.chezmoitemplates/AGENTS.md.tmpl` for shared agent guidance.
+Edit `dot_pi/agent/AGENTS.md.tmpl` or `dot_codex/AGENTS.md.tmpl` for agent-specific guidance.
+Some skills contain their full source under `dot_agents/skills/`; inspect their wrapper before choosing a file.
 
-- `dot_agents/skills/*/SKILL.md.tmpl` ← `.chezmoitemplates/skills/*.tmpl`
-- `dot_codex/AGENTS.md`, `dot_pi/agent/AGENTS.md`, `dot_config/opencode/AGENTS.md` ← `.chezmoitemplates/AGENTS.md.tmpl`
-
-To modify: edit `.chezmoitemplates/prompts/**/*.tmpl`, then apply only the
-generated targets (`chezmoi -S ~/.local/share/chezmoi-ai apply dot_agents/`).
-
-## OpenCode Symlink Bridge
-
-`~/.config/opencode/{skills,command}` are symlinks to `~/.agents/{skills,commands}`.
-Edit `dot_agents/` templates + apply only `dot_config/opencode/` targets updates both.
-Never edit opencode paths directly.
+Chezmoi generates files under `~/.agents/`, `~/.pi/`, and `~/.codex/`.
+Apply the affected destination files, not an unrelated source directory.
+Never edit generated destinations directly.
 
 ## Cross-Platform
 
@@ -105,14 +93,15 @@ Use `perl -i -pe` (not `sed -i`) for in-place edits — different syntax on macO
 ## Common Commands
 
 ```bash
-mise run apply|diff|status|verify          # pinned to ~/.local/share/chezmoi-ai
-chezmoi -S ~/.local/share/chezmoi-ai edit <file>   # open source in $EDITOR
-chezmoi -S ~/.local/share/chezmoi-ai add ~/.path/file  # track new file from home
+mise apply                              # full apply, including eligible installers
+mise run apply -- --exclude=scripts <destination>...  # scoped agent edits
+mise run diff|status|verify               # uses the active checkout
+chezmoi -S "$PWD" edit <destination>      # open the source in $EDITOR
+chezmoi -S "$PWD" add ~/.path/file        # track a new file from home
 ```
 
 ## Documentation Lookup
 
-Prefer `libref query <lib> "<topic>"` over web fetching. Workflow:
-`libref list` → `libref query` → `libref add <git-url>` (register a missing
-source) → web fetch (last resort). For chezmoi itself:
-`libref query chezmoi@2.61.0 '<topic>'`.
+Prefer version-matched local documentation, including `libref query <lib> "<topic>"`.
+Use current official documentation when local references are missing or unsuitable.
+Register a library only when useful, with applicable filesystem and network permission.

@@ -1,93 +1,56 @@
-# Chezmoi Templates — Prompt Unification
+# Shared instruction templates
 
-This directory holds **core prompt templates** shared by the Pi and Codex
-configurations.
+Edit shared instructions here, then apply only their affected destinations.
+This repository supports Pi and Codex.
 
-## Directory Structure
+## Sources and destinations
 
-```
-.chezmoitemplates/
-├── AGENTS.md.tmpl    # Shared agent guidance (Pi, Codex, OpenCode)
-├── skills/           # Shared skill definitions (render to ~/.agents/skills)
-├── prompts/          # Shared slash-command prompts
-│   ├── prompts/      # Core prompts for prompt-refine / prompt-evaluate
-│   └── tools/        # Core prompts for tool commands
-├── rules/            # Shared rule snippets
-└── scripts/          # Shared helper scripts
-```
+| Content | Source | Destination |
+| --- | --- | --- |
+| Shared guidance | `.chezmoitemplates/AGENTS.md.tmpl` | Included by both agent wrappers |
+| Agent wrappers | `dot_pi/agent/AGENTS.md.tmpl`, `dot_codex/AGENTS.md.tmpl` | `~/.pi/agent/AGENTS.md`, `~/.codex/AGENTS.md` |
+| Shared skill bodies | `.chezmoitemplates/skills/*.tmpl` | Included by `dot_agents/skills/*/SKILL.md.tmpl` |
+| Standalone skills | `dot_agents/skills/*` | `~/.agents/skills/*` |
+| Reusable prompts | `.chezmoitemplates/prompts/tools/*.tmpl` | Included by their source wrappers |
+| Rule fragments | `.chezmoitemplates/rules/*.tmpl` | Included where needed |
+| Scripts and tests | `.chezmoitemplates/scripts/`, `.chezmoitemplates/tests/` | Source-only unless included by a wrapper |
 
-## Editing Rules (Critical)
+Files under `dot_*` are tracked sources, not generated output.
+Inspect a skill wrapper before deciding whether to edit its source or an included template.
+Never edit generated files under the home directory.
 
-### 📝 Core Templates (Authoritative)
+## Template syntax
 
-- **Edit these files** when updating shared content.
-- These are the **single source of truth** for skills, prompts, and agent guidance.
-- Changes here propagate on the next apply.
-
-### 🔗 Generated Files (Do NOT Edit)
-
-- `dot_agents/skills/*` — rendered from `.chezmoitemplates/skills/*.tmpl`.
-- `dot_pi/agent/AGENTS.md`, `dot_codex/AGENTS.md`,
-  `dot_config/opencode/AGENTS.md` — rendered from `AGENTS.md.tmpl`.
-- **Never edit directly** — changes are lost on the next apply.
-
-## Template Variables
-
-### Destination-Based Conditionals
-
-Templates can render tool-specific content via `.chezmoi.targetFile`:
+Include another template relative to this directory:
 
 ```chezmoitmpl
-{{ if contains "/.codex/" .chezmoi.targetFile }}
-Codex-specific content here...
-{{ end }}
-
-{{ if contains "/.config/opencode/" .chezmoi.targetFile }}
-Opencode-specific content here...
-{{ end }}
+{{ template "skills/commit.tmpl" . }}
 ```
 
-### Common Template Variables
+Use `.chezmoi.targetFile` for destination-specific content:
 
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `.chezmoi.targetFile` | Destination directory path | `/Users/werner/.codex/AGENTS.md` |
-| `.chezmoi.sourceDir` | Source directory (chezmoi root) | `/Users/werner/.local/share/chezmoi-ai` |
-| `.chezmoi.homeDir` | User's home directory | `/Users/werner` |
+```chezmoitmpl
+{{ if contains "/.codex/" .chezmoi.targetFile }}Codex-specific content{{ end }}
+```
 
-### User-Provided Arguments
+`.chezmoi.sourceDir` is the source checkout; `.chezmoi.homeDir` is the home directory.
+Use `$ARGUMENTS` only when the destination prompt runtime supports that substitution.
+Skill bodies use the current request from the harness.
 
-Pass user arguments through as `$ARGUMENTS`.
+## Verify and apply
 
-| File Type | Location | Owner | Editable? | Maintenance |
-|-----------|----------|-------|-----------|-------------|
-| Core skills | `.chezmoitemplates/skills/**/*` | You | ✅ Yes | Edit as needed |
-| Shared agent skills | `dot_agents/skills/**/*` | Generated | ❌ No | Auto-regenerated |
-| Agent guidance | `dot_pi/`, `dot_codex/`, `dot_config/opencode/` | Generated | ❌ No | Auto-regenerated |
+Run from the active checkout, including worktrees:
 
-## Maintenance Instructions
+```bash
+mise run test
+mise run lint
+chezmoi -S "$PWD" diff ~/.pi/agent/AGENTS.md ~/.codex/AGENTS.md
+mise run apply -- --exclude=scripts ~/.pi/agent/AGENTS.md ~/.codex/AGENTS.md
+chezmoi -S "$PWD" status ~/.pi/agent/AGENTS.md ~/.codex/AGENTS.md
+```
 
-1. **Update a skill or prompt**: edit the core `.tmpl` file in `.chezmoitemplates/`.
-2. **Apply changes**: run `mise run apply` (pinned to ~/.local/share/chezmoi-ai).
-3. **Verify**: check rendered files in `~/.agents/`, `~/.pi/`, `~/.codex/`.
-4. **Rollback**: revert the core template and re-apply.
-
-## Workflow
-
-1. **Edit core template**: modify the `.tmpl` file in `.chezmoitemplates/`.
-2. **Test locally**: run `chezmoi -S ~/.local/share/chezmoi-ai diff` to preview.
-3. **Apply**: run `mise run apply`.
-4. **Verify**: check rendered files in `dot_agents/`, `dot_pi/`, `dot_codex/`.
-
-## Debugging Template Issues
-
-If rendered files lack expected content:
-
-1. Check template syntax with `chezmoi execute-template < file`.
-2. Verify variable names match `.chezmoi` documentation.
-3. Ensure `{{ template "<path>" . }}` paths are relative to `.chezmoitemplates/`.
-4. Run `chezmoi -S ~/.local/share/chezmoi-ai apply --dry-run` to preview.
-
----
-
-**Remember**: when in doubt, edit the core template in `.chezmoitemplates/` and let chezmoi handle the rest.
+Bare `mise apply` applies all configuration and eligible installation scripts.
+Use explicit destinations and `--exclude=scripts` for scoped template updates.
+For a skill change, select its `~/.agents/skills/<directory>/SKILL.md` destination instead.
+Preview rendered templates with `chezmoi -S "$PWD" cat <destination>`.
+Do not print rendered credentials during verification.
