@@ -123,6 +123,17 @@ Explicit user requests for delegation take precedence.
 - Reuse a skill body already present and current in context. Reread it after context loss, source changes, or incomplete reads.
 </coding_discipline>
 
+<hitl_review>
+Use plannotator for human-in-the-loop review and approval instead of chat-only questions when a decision, feedback, or sign-off is needed. Use the `plannotator` CLI; do not spawn or switch into plan mode to obtain a review.
+
+- Plans: submit the plan for review with `plannotator annotate <plan.md> --gate --json`. Do not execute until approved.
+- Batched decisions: when several questions or decisions are needed, write them into a markdown document and review it with `plannotator annotate <file> --gate --json` instead of asking one-by-one.
+- Code changes: before finalizing non-trivial changes, run `plannotator review --json` and address submitted annotations. Do not self-approve.
+- Documents and specs: use `plannotator annotate <file>` (`--gate` when sign-off is required).
+- `--gate` adds an explicit Approve button for sign-off; use it when you want a clear approve/reject decision.
+- Wait for the JSON decision (`approved`, `annotated`, or `dismissed`) and its message before proceeding. Do not infer approval from silence.
+</hitl_review>
+
 <communication>
 Keep language concise, explicit, and concrete. Use active voice. Name files, commands, and symbols instead of relying on "the file" or "it".
 
