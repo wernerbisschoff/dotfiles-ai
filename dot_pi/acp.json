@@ -1,5 +1,22 @@
 {
   "compress": {
-    "nudgeGrowthTokens": 65000
+    "nudgeGrowthTokens": 65000,
+    "minPressureBenefitTokens": 30000,
+    "maxContextLimit": "0.55",
+    "providers": {
+      "openai-codex": {
+        "models": {
+          "gpt-6.1-sol": {
+            "maxContextLimit": "0.60",
+            "nudgeGrowthTokens": 80000,
+            "minPressureBenefitTokens": 40000
+          }
+        }
+      }
+    }
+  },
+  "idleCompact": {
+    "enabled": false,
+    "idleMinutes": 29
   }
 }
