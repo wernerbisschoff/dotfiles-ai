@@ -4,5 +4,10 @@
   "firecrawlBaseUrl": "https://api.firecrawl.dev",
   "firecrawlApiVersion": "v2",
   "firecrawlApiKey": "{{ env "FIRECRAWL_API_KEY" }}",
-  "firecrawlFreshScrape": true{{ end }}
+  "firecrawlFreshScrape": true,
+  "firecrawlPdfMaxPages": 20{{ end }}{{ if env "TINYFISH_API_KEY" }},
+  "fetchRouting": {
+    "providers": ["http", "tinyfish"{{ if env "FIRECRAWL_API_KEY" }}, "firecrawl"{{ end }}],
+    "allowRemoteHostedProviders": true
+  }{{ end }}
 }
