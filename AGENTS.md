@@ -90,6 +90,10 @@ Never edit generated destinations directly.
 
 Use `perl -i -pe` (not `sed -i`) for in-place edits — different syntax on macOS vs Linux.
 
+## Commits
+
+Follow [`CONTRIBUTING.md`](./CONTRIBUTING.md) for commit message conventions (emoji prefix + Conventional Commits) when creating commits.
+
 ## Common Commands
 
 ```bash
