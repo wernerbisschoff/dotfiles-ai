@@ -129,8 +129,10 @@ Use plannotator for human-in-the-loop review and approval instead of chat-only q
 - Plans: submit the plan for review with `plannotator annotate <plan.md> --gate --json`. Do not execute until approved.
 - Batched decisions: when several questions or decisions are needed, write them into a markdown document and review it with `plannotator annotate <file> --gate --json` instead of asking one-by-one.
 - Code changes: before finalizing non-trivial changes, run `plannotator review --json` and address submitted annotations. Do not self-approve.
+- Re-reviews: after an approval, review only subsequent edits with `plannotator review --patch-file <patch> --gate --json --no-git-remote-check`. Generate the patch with `git diff` (or any writer of `diff --git` headers); a bare `diff -u` renders an empty review.
 - Documents and specs: use `plannotator annotate <file>` (`--gate` when sign-off is required).
 - `--gate` adds an explicit Approve button for sign-off; use it when you want a clear approve/reject decision.
+- Timeout: start the CLI with a generous shell timeout (1800 s or more, or the harness maximum). It blocks for as long as the user reads and writes annotations; never cancel or re-run it on a short default timeout.
 - Wait for the JSON decision (`approved`, `annotated`, or `dismissed`) and its message before proceeding. Do not infer approval from silence.
 </hitl_review>
 
