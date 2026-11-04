@@ -5,7 +5,7 @@
   },
   "theme": "light",
   "quietStartup": true,
-  "lastChangelogVersion": "1.4.0",
+  "lastChangelogVersion": "1.5.0",
   "packages": [
     "npm:pi-hashline-context-edit",
     "npm:pi-lmstudio",
@@ -22,6 +22,10 @@
   "hideThinkingBlock": true,
   "defaultThinkingLevel": "high",
   "defaultProvider": "opencode-go",
-  "defaultModel": "beam-free",
-  "tuiMode": "regular"
+  "defaultModel": "deepseek-v4.1-flash",
+  "tuiMode": "regular",
+  "extensionChangelogVersions": {
+    "{\"source\":\"npm:pi-commandcode-provider\",\"scope\":\"user\"}": "0.7.11",
+    "{\"source\":\"npm:pi-lens\",\"scope\":\"user\"}": "4.4.7"
+  }
 }
