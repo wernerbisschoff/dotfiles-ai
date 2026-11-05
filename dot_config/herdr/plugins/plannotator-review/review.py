@@ -30,7 +30,14 @@ def run_review(cwd):
     previous = signal.signal(signal.SIGTERM, cancel)
     try:
         with subprocess.Popen(
-            ["plannotator", "review", "--json"],
+            [
+                "plannotator",
+                "review",
+                "--diff-type",
+                "uncommitted",
+                "--no-git-remote-check",
+                "--json",
+            ],
             cwd=cwd,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,

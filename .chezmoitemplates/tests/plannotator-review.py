@@ -22,7 +22,10 @@ class ReviewTests(unittest.TestCase):
             with patch.dict(os.environ, {"PLANNOTATOR_REVIEW_TIMEOUT_SECONDS": "42"}):
                 self.assertEqual(review.run_review(".")["message"], "ok")
             process.communicate.assert_called_once_with(timeout=42)
-            self.assertTrue(popen.call_args.kwargs["start_new_session"])
+            self.assertEqual(
+                popen.call_args.args[0],
+                ["plannotator", "review", "--diff-type", "uncommitted", "--no-git-remote-check", "--json"],
+            )
 
     def test_timeout_and_cancellation_kill_process_group(self):
         for error, reason in [

@@ -128,12 +128,13 @@ Use plannotator for human-in-the-loop review and approval instead of chat-only q
 
 - Plans: submit the plan for review with `plannotator annotate <plan.md> --gate --json`. Do not execute until approved.
 - Batched decisions: when several questions or decisions are needed, write them into a markdown document and review it with `plannotator annotate <file> --gate --json` instead of asking one-by-one.
-- Code changes: before finalizing non-trivial changes, run `plannotator review --json` and address submitted annotations. Do not self-approve.
+- Code changes: before finalizing non-trivial changes, run `plannotator review --diff-type uncommitted --no-git-remote-check --json` and address submitted annotations. Do not self-approve.
+- Bare `plannotator review` diffs against the remote base, so it includes every unpushed commit. That is the right tool when reviewing exactly that (everything not yet pushed before a PR), but it buries a single change under already-approved work. For the change in front of you, scope it with `--diff-type` (`uncommitted`, `staged`, `last-commit`), `--base <ref>`, or `--patch-file`. Pass `--no-git-remote-check` when the remote needs an interactive key.
 - Re-reviews: after an approval, review only subsequent edits with `plannotator review --patch-file <patch> --gate --json --no-git-remote-check`. Generate the patch with `git diff` (or any writer of `diff --git` headers); a bare `diff -u` renders an empty review.
 - Documents and specs: use `plannotator annotate <file>` (`--gate` when sign-off is required).
 - `--gate` adds an explicit Approve button for sign-off; use it when you want a clear approve/reject decision.
 - Timeout: start the CLI with a generous shell timeout (1800 s or more, or the harness maximum). It blocks for as long as the user reads and writes annotations; never cancel or re-run it on a short default timeout.
-- Wait for the JSON decision (`approved`, `annotated`, or `dismissed`) and its message before proceeding. Do not infer approval from silence.
+- Wait for the JSON decision (`approved`, `annotated`, or `dismissed`) and its message before proceeding. Branch on the `decision` field, never on `message` wording. `dismissed` is not approval, and a run the human aborted carries no decision: re-run it. Do not infer approval from silence.
 </hitl_review>
 
 <communication>
