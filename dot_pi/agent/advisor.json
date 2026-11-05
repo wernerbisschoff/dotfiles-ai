@@ -1,9 +1,0 @@
-{
-  "enabled": true,
-  "provider": "opencode-go",
-  "model": "deepseek-v4-flash",
-  "maxUsesPerRun": 3,
-  "maxTokens": 16384,
-  "reasoning": "high",
-  "maxContextMessages": 18
-}

@@ -72,6 +72,24 @@ class DeploymentTests(unittest.TestCase):
             )
             self.assertEqual(result.stdout.splitlines(), [".agents/skills/example/SKILL.md"])
 
+    def test_pi_model_defaults_are_host_specific(self):
+        for hostname, provider, model in (
+            ("Werners-MacBook-Air-2", "openai-codex", "gpt-6.1-sol"),
+            ("personal-laptop", "opencode-go", "deepseek-v4.1-flash"),
+        ):
+            with self.subTest(hostname=hostname):
+                result = subprocess.run(
+                    ["chezmoi", "-S", str(ROOT), "--override-data",
+                     json.dumps({"chezmoi": {"hostname": hostname}}),
+                     "execute-template", "--file",
+                     str(ROOT / "dot_pi/agent/settings.json.tmpl")],
+                    capture_output=True, text=True, check=True,
+                )
+                settings = json.loads(result.stdout)
+                self.assertEqual(settings["defaultProvider"], provider)
+                self.assertEqual(settings["defaultModel"], model)
+
+
     def test_skill_templates_render_without_runtime_placeholders(self):
         for path in sorted((ROOT / "dot_agents/skills").glob("*/SKILL.md.tmpl")):
             with self.subTest(skill=path.parent.name):

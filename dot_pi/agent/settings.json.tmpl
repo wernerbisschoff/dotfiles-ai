@@ -1,3 +1,4 @@
+{{- $workLaptop := eq .chezmoi.hostname "Werners-MacBook-Air-2" -}}
 {
   "compaction": {
     "enabled": true,
@@ -21,8 +22,8 @@
   "treeFilterMode": "user-only",
   "hideThinkingBlock": true,
   "defaultThinkingLevel": "high",
-  "defaultProvider": "opencode-go",
-  "defaultModel": "deepseek-v4.1-flash",
+  "defaultProvider": {{ ternary "openai-codex" "opencode-go" $workLaptop | quote }},
+  "defaultModel": {{ ternary "gpt-6.1-sol" "deepseek-v4.1-flash" $workLaptop | quote }},
   "tuiMode": "regular",
   "extensionChangelogVersions": {
     "{\"source\":\"npm:pi-commandcode-provider\",\"scope\":\"user\"}": "0.7.11",
