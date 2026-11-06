@@ -74,7 +74,7 @@ class DeploymentTests(unittest.TestCase):
 
     def test_pi_model_defaults_are_host_specific(self):
         for hostname, provider, model in (
-            ("Werners-MacBook-Air-2", "openai-codex", "gpt-6.1-sol"),
+            ("Werners-Work", "openai-codex", "gpt-6.1-sol"),
             ("personal-laptop", "opencode-go", "deepseek-v4.1-flash"),
         ):
             with self.subTest(hostname=hostname):
