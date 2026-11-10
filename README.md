@@ -52,11 +52,6 @@ Preview with `mise run diff`, or apply a single target:
 mise run apply -- --exclude=scripts ~/.pi/agent/mcp.json
 ```
 
-`GUARDRAILS.md` plus the `@bergetai/guardrails-md` package also judge the
-agent's `bash` commands with this repo's policy while the checkout is the
-working directory. It is a model-assisted check, not a sandbox — read the
-policy and decide whether you want it enforcing your shell.
-
 ## Bootstrap
 
 Public repo — one line over HTTPS (installs mise + chezmoi if missing,
