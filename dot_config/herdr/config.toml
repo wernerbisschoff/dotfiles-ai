@@ -30,7 +30,6 @@ previous_workspace = "ctrl+alt+p"
 next_agent = "ctrl+alt+k"
 previous_agent = "ctrl+alt+j"
 switch_workspace = "prefix+shift+1..9"
-# Default prefix+shift+h is swap_pane_left; move it so hunk review can use that chord.
 swap_pane_left = "prefix+alt+h"
 [[keys.command]]
 key = "prefix+alt+g"
@@ -39,44 +38,6 @@ command = "lazygit"
 description = "run lazygit"
 width = "80%"
 height = "80%"
-
-[[keys.command]]
-key = "prefix+shift+h"
-type = "plugin_action"
-command = "jhochenbaum.hunkdiff.review"
-description = "hunk: review working tree vs HEAD"
-
-[[keys.command]]
-key = "prefix+shift+b"
-type = "popup"
-command = "hunk diff --watch --wrap '@{u}...HEAD'"
-description = "hunk: review vs upstream (@{u}...HEAD)"
-width = "90%"
-height = "90%"
-
-[[keys.command]]
-key = "prefix+shift+m"
-type = "plugin_action"
-command = "jhochenbaum.hunkdiff.review:branch"
-description = "hunk: review branch vs plugin base (S works)"
-
-[[keys.command]]
-key = "prefix+shift+s"
-type = "plugin_action"
-command = "jhochenbaum.hunkdiff.send-review"
-description = "hunk: send review to agent"
-
-[[keys.command]]
-key = "prefix+shift+c"
-type = "plugin_action"
-command = "jhochenbaum.hunkdiff.review:commit"
-description = "hunk: review the last commit"
-
-[[keys.command]]
-key = "prefix+shift+a"
-type = "plugin_action"
-command = "jhochenbaum.hunkdiff.review:staged"
-description = "hunk: review staged changes"
 
 [[keys.command]]
 key = "prefix+ctrl+r"

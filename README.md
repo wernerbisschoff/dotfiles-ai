@@ -14,7 +14,7 @@ alone and it works, with no OS/shell repo required.
 | `dot_codex/**` | `~/.codex/` (AGENTS.md, rules; skills symlinked from `~/.agents/skills`) |
 | `.chezmoitemplates/**` | shared template source of truth |
 | `dot_config/pi/**` | `~/.config/pi/` (web-search config) |
-| `dot_config/herdr/**`, `dot_config/hunk/**` | `~/.config/herdr/`, `~/.config/hunk/` |
+| `dot_config/herdr/**` | `~/.config/herdr/` (incl. plugin config) |
 | `dot_plannotator/**` | `~/.plannotator/` |
 | `dot_config/zsh/conf.d/060-pi-theme-sync.zsh.tmpl`, `070-herdr.zsh` | `~/.config/zsh/conf.d/` |
 
@@ -42,7 +42,7 @@ Tasks: `mise run diff|status|edit|verify|test|lint|format|fix|install`.
 ### Before applying to a machine you already use
 
 A full apply takes over `~/.pi`, `~/.codex`, and `~/.agents`, and runs the
-installers: global `mise` tools (`pi`, `herdr`, `hunk`), npm globals, the
+installers: global `mise` tools (`pi`, `herdr`), npm globals, the
 plannotator binary, and libref docs. Whatever already sits at those
 destinations is replaced, not merged.
 
@@ -68,7 +68,7 @@ Needs no companion OS/shell repo; clone and run it on its own.
 
 ## Toolchain
 
-The AI CLIs (`pi`, `herdr`, `hunk`) are declared as global `mise` tools by
+The AI CLIs (`pi`, `herdr`) are declared as global `mise` tools by
 `run_once_after_install-ai-mise-tools.sh` (`mise use -g`), so their shims stay
 machine-wide. npm globals (`@zvec/zvec-grep`, `@wernerbisschoff/libref`)
 install via `run_once_after_npm-globals.sh`, and

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Upgrade the global AI toolchain (pi, herdr, hunk) on every apply.
+# Upgrade the global AI toolchain (pi, herdr) on every apply.
 # Keeps pi (and friends) current without relying on `pi update`, which
 # cannot self-update a mise-managed install.
 set -u
@@ -20,8 +20,8 @@ fi
 
 eval "$(mise activate bash)" 2>/dev/null || true
 
-log_info "Upgrading AI toolchain (pi, herdr, hunk)..."
-if mise upgrade --bump npm:@earendil-works/pi-coding-agent herdr hunk; then
+log_info "Upgrading AI toolchain (pi, herdr)..."
+if mise upgrade --bump npm:@earendil-works/pi-coding-agent herdr; then
 	log_success "AI toolchain up to date"
 else
 	log_warn "AI toolchain upgrade failed; continuing"

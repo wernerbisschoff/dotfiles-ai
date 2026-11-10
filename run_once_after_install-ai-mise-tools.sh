@@ -1,10 +1,10 @@
 #!/bin/bash
-# Register the AI toolchain (pi, herdr, hunk) as GLOBAL mise tools and install
+# Register the AI toolchain (pi, herdr) as GLOBAL mise tools and install
 # them. Runs once per content hash (run_once_after_).
 #
 # Why: `pi` is not pinned in [tools] (this repo). ~/.config/mise/config.toml
 # is owned by the MAIN dotfiles repo and no longer declares AI tools. This
-# script re-asserts pi/herdr/hunk globally so their shims stay available
+# script re-asserts pi/herdr globally so their shims stay available
 set -euo pipefail
 
 GREEN='\033[0;32m'
@@ -22,8 +22,8 @@ fi
 
 eval "$(mise activate bash)"
 
-mise use -g --remove pi npm:@earendil-works/pi-coding-agent@latest herdr@latest hunk@latest
+mise use -g --remove pi npm:@earendil-works/pi-coding-agent@latest herdr@latest
 mise install
-mise upgrade --bump npm:@earendil-works/pi-coding-agent herdr hunk
+mise upgrade --bump npm:@earendil-works/pi-coding-agent herdr
 
-log_success "AI mise tools registered globally (pi, herdr, hunk)"
+log_success "AI mise tools registered globally (pi, herdr)"

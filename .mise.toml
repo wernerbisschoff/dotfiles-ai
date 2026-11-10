@@ -67,6 +67,6 @@ run = "pi update --all"
 depends_post = ["patch-pi"]
 
 [tasks.upgrade-ai]
-description = "Upgrade pi, herdr, and hunk, then re-apply the local package patches"
-run = "mise upgrade --bump npm:@earendil-works/pi-coding-agent herdr hunk"
+description = "Upgrade pi and herdr, then re-apply the local package patches"
+run = "mise upgrade --bump npm:@earendil-works/pi-coding-agent herdr"
 depends_post = ["patch-pi"]
