@@ -1,0 +1,50 @@
+---
+name: auditing-fp-purity
+description: "Use when auditing side effects or separating calculations from I/O and shared state."
+---
+
+# Audit side-effect boundaries
+
+Use the code and constraints from the current request.
+An audit produces findings and a plan; modify code only when implementation is requested.
+
+## Inspect effects
+
+Trace relevant functions and their dependencies. Identify:
+- Filesystem, network, database, queue, and logging operations.
+- Time, randomness, environment, or mutable global-state reads.
+- Mutation visible to callers, callbacks, or concurrent work.
+- Transaction, retry, cancellation, and resource-lifetime boundaries.
+
+Use these terms:
+- **Action:** performs an observable effect or depends on changing external state.
+- **Calculation:** returns a result determined by explicit input values without observable effects.
+- **Data:** values used by actions and calculations.
+
+Classify useful function or operation boundaries, not every source line.
+A function can contain mixed behavior; explain the relevant effects instead of forcing a label.
+Mark unknown library behavior as uncertain until verified.
+
+## Recommend or implement focused separation
+
+- Keep I/O at appropriate boundaries and pass resulting values into calculations.
+- Passing a clock or client object does not make calls to it pure.
+  Pass a timestamp or fetched data when the calculation only needs those values.
+- Prefer explicit dependencies over hidden shared state.
+- Local mutation that cannot escape the function does not by itself create an observable side effect.
+- A callback or async declaration is not inherently impure; inspect what it does.
+- Do not create action/calc/data wrappers, interfaces, or a centralized data layer merely to satisfy this classification.
+
+Preserve effect ordering, error behavior, transactions, retries, and concurrency guarantees.
+Moving an operation can change when or how often it runs. Check that behavior explicitly.
+Do not convert logging to returned events unless that improves the actual design.
+
+## Verify and report
+
+For implementation, retain regression coverage and add checks for changed boundaries.
+Verify deterministic calculations and the observable effects of their callers.
+Run the repository's required checks.
+
+Report effect locations, their maintenance impact, recommended changes, and any unavoidable effects.
+Distinguish proposed changes from implemented changes.
+State verification results and remaining uncertainty.

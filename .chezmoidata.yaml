@@ -1,0 +1,6 @@
+# Hostnames that switch Pi between configurations. Point these at your own
+# machines; every other hostname takes the portable defaults.
+ai:
+  hosts:
+    workLaptop: Werners-Work
+    desktop: werner-desktop

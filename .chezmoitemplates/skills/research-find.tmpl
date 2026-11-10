@@ -1,0 +1,123 @@
+---
+name: research-find
+description: "Use when someone asks what research or evidence says about a topic and wants real sources found, ranked by quality, and saved into their research folder."
+---
+
+# Find Sources
+
+Purpose: find real, checkable sources for a question and save only the ones the user chooses.
+Everything lands in `~/Research/`, which is the system's memory between sessions.
+
+## First run
+
+If `~/Research/` does not exist, create it before searching:
+
+```
+~/Research/sources/   notes/   answers/   INDEX.md   AGENTS.md
+```
+
+`INDEX.md` starts with:
+
+```markdown
+# Research Index
+
+One line per note: `- <note-file> | <year> | tier <A-D> | <key claims>`
+```
+
+`AGENTS.md` holds this text and nothing else:
+
+```markdown
+# Research Folder
+
+This folder is a research library, not a code project.
+
+- `sources/` holds PDFs and saved pages. Never edit or delete a source.
+- `notes/` holds one note per source: citation, quotable claims, method, limits.
+- `answers/` holds written syntheses.
+- `INDEX.md` lists every note with its key claims. Read it first, always.
+- Cite or do not claim. A claim without a quote and locator is not allowed.
+- Say "not covered by your sources" rather than answering from memory.
+```
+
+Never touch anything else in the home directory, and never create a git repository here.
+
+## Keys
+
+Two keys, one file: `~/Research/.env`, loaded at startup by the Pi extension when `pi` is launched
+from this folder. Never commit it; `chmod 600 ~/Research/.env`.
+
+```bash
+# OpenAlex — free. One call with an email; the key arrives by link and works after the click.
+OPENALEX_API_KEY=<key>
+# Semantic Scholar — free form at semanticscholar.org/product/api; approval is not instant.
+S2_API_KEY=<key>
+```
+
+Missing key behaviour, stated honestly: OpenAlex without a key shares a **$0.10/day budget with
+everyone on the same IP address**, which runs out in a handful of searches — treat the key as
+required, not optional. Semantic Scholar without a key rate-limits hard (429), so results arrive
+slowly and incompletely rather than not at all.
+
+## Search
+
+Run all three; they cover different literature. Wrap the user's words in one query each — do not
+stack synonyms.
+
+```bash
+# OpenAlex — broad academic coverage; send the key or the shared budget dies
+curl -sG "https://api.openalex.org/works" \
+  --data-urlencode "search=<query>" \
+  --data-urlencode "per_page=10" \
+  --data-urlencode "api_key=${OPENALEX_API_KEY}" \
+  --data-urlencode "select=id,title,publication_year,cited_by_count,doi,type,open_access,authorships"
+
+# Semantic Scholar — citation counts and abstracts; needs S2_API_KEY
+curl -s -H "x-api-key: ${S2_API_KEY}" \
+  "https://api.semanticscholar.org/graph/v1/paper/search?query=<urlencoded>&limit=10&fields=title,year,venue,citationCount,externalIds,url,abstract"
+```
+
+Plus one web search through the harness's web tool for practitioner and grey literature. If an API
+returns 429, wait 3 seconds and retry once, then continue with the sources that did work and say which
+one failed.
+
+## Rank
+
+Give every candidate a line of reasoning, not just a URL:
+
+- **Relevance** — which part of the question it can answer, and which part it cannot.
+- **Tier** — `A` peer-reviewed primary study, `B` peer-reviewed review or preprint, `C` official
+  documentation or first-hand practitioner report, `D` commentary.
+- **Independence** — mark candidates that report the same underlying study. Three write-ups of one
+  trial are one source, and saying so is the whole point of the tier.
+
+Prefer the direct source over an aggregator. A blog summarising a paper is a lead; the paper is
+evidence.
+
+## Save
+
+Present the table and ask which sources to save. Do not download before the answer.
+
+```bash
+mkdir -p ~/Research/sources
+curl --fail --location --connect-timeout 15 --max-time 60 \
+  --output ~/Research/sources/<firstauthor>-<year>-<short-title>.pdf "<pdf-url>"
+head -c 5 ~/Research/sources/<file>.pdf   # must print %PDF-
+```
+
+Check the file is non-empty and starts with `%PDF-`; an HTML error page saved as `.pdf` is a failed
+download, so delete it and report the failure. Prefer open-access locations (arXiv, PMC, DOAJ,
+`open_access.oa_url` from OpenAlex). When a source is paywalled, say so and leave a line for the user
+to add it themselves.
+
+Then append one line per saved source to `INDEX.md`:
+
+```markdown
+- <firstauthor>-<year>-<short-title> | <year> | tier B | not read yet
+```
+
+## Rules
+
+- Never present a source as support for a claim without naming the claim.
+- Never invent a citation, DOI, or arXiv ID. Verify an identifier against the source page before writing it.
+- If nothing usable comes back, say that plainly. Remembered literature is not a search result.
+- Do not summarise what the paper found. Read it with `/research-read` first.

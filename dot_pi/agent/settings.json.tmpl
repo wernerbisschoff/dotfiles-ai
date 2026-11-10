@@ -1,0 +1,31 @@
+{{- $workLaptop := eq .chezmoi.hostname .ai.hosts.workLaptop -}}
+{
+  "compaction": {
+    "enabled": true,
+    "reserveTokens": 10000
+  },
+  "theme": "light",
+  "quietStartup": true,
+  "lastChangelogVersion": "1.5.1",
+  "packages": [
+    "npm:pi-hashline-context-edit",
+    "npm:pi-paster",
+    "npm:pi-better-paste-markers",
+    "npm:@plannotator/pi-extension",
+    "npm:billion-context-pi-lean",
+    "npm:pi-lens",
+    "npm:@ssk_dev/pi-web-access-lean",
+    "npm:@ssk_dev/pi-subagents-lean",
+    "npm:@bergetai/guardrails-md"
+  ],
+  "treeFilterMode": "user-only",
+  "hideThinkingBlock": true,
+  "defaultThinkingLevel": "high",
+  "defaultProvider": {{ ternary "openai-codex" "opencode-go" $workLaptop | quote }},
+  "defaultModel": {{ ternary "gpt-6.1-sol" "deepseek-v4.1-flash" $workLaptop | quote }},
+  "tuiMode": "regular",
+  "selfUpdateCommand": ["mise", "use", "-g", "npm:{packageName}@{version}"],
+  "extensionChangelogVersions": {
+    "{\"source\":\"npm:pi-lens\",\"scope\":\"user\"}": "4.4.11"
+  }
+}

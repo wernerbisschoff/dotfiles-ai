@@ -1,0 +1,42 @@
+# Root-level docs (managed outside chezmoi — not rendered to $HOME)
+.DS_Store
+.env
+./AGENTS.md
+./CONTRIBUTING.md
+./README.md
+./BILLION-CONTEXT.md
+./bootstrap.sh
+./LICENSE
+
+# === Pi ===
+.pi/*
+!.pi/acp.json
+!.pi/agent/
+!.pi/agent/AGENTS.md
+!.pi/agent/extensions
+!.pi/agent/themes
+!.pi/agent/skills
+!.pi/agent/prompts
+!.pi/agent/mcp.json
+# Settings are managed. Pi also updates them at runtime; review changes before applying.
+!.pi/agent/settings.json
+
+# Pi web-search config lives under ~/.config/pi via XDG
+.config/pi/*
+!.config/pi/web-search.json
+
+# === Misc ===
+memory.md
+*.bak
+.taskmaster/
+
+# Codex automations are managed outside chezmoi
+./.codex/automations/**
+
+# Runtime artifacts. Avoid broad ! exceptions: they override ignore patterns.
+**/__pycache__
+**/__pycache__/**
+**/*.pyc
+**/*.pyo
+.zvec-grep/**
+.codebase-index/**

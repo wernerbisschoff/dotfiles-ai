@@ -1,0 +1,58 @@
+---
+name: frontend-designing
+description: "Use when designing or implementing frontend interfaces, layouts, and interaction states."
+---
+
+# Design useful, distinctive interfaces
+
+Use the current request, audience, existing product, and technical constraints.
+Match an existing design system before inventing a new visual direction.
+For a new design, choose an intentional direction suited to the task; novelty is not the goal.
+
+## Understand the interface
+
+- Identify the main user task, content hierarchy, and key interactions.
+- Inspect existing components, tokens, assets, and dependencies before adding alternatives.
+- Clarify requirements that materially affect implementation.
+  Make reasonable, explicit assumptions for minor gaps.
+- Agree on a direction when the brief has materially different interpretations.
+
+## Implement
+
+Use clear component boundaries, names, and data flow.
+Reuse installed components and platform features when they fit.
+Explain non-obvious interaction or compatibility decisions with focused comments.
+
+Choose typography, color, spacing, and layout for readability and consistency.
+System fonts and familiar interaction patterns are valid choices.
+Respect brand requirements; do not impose a fixed font blacklist, palette, or mandatory visual effect.
+
+Avoid the generic generated look unless the brief calls for it.
+Watch for: an eyebrow kicker above every heading, decorative pill badges, gradient or shimmer text, glassmorphism cards, emoji in headings, an icon before every bullet, uniform large radii with soft shadows on everything, and hero plus three feature cards plus testimonial plus call to action as the entire page.
+These are defaults to question, not bans: brand, product pattern, or content can justify any of them.
+
+Use semantic HTML and native controls where practical.
+Provide labels, keyboard access, visible focus, appropriate contrast, and useful validation messages.
+Handle loading, empty, error, success, and disabled states when relevant.
+Support different viewport sizes, text zoom, and long or localized content.
+
+Use motion only when it helps feedback or comprehension.
+Respect reduced-motion preferences and avoid blocking core tasks with animation.
+Keep assets, dependencies, and rendering costs proportional to the design.
+
+## Verify
+
+Run the project's required checks.
+When browser tools are available, inspect the rendered interface at relevant viewport sizes.
+Exercise primary interactions with keyboard and pointer input.
+Check focus behavior, overflow, content states, and accessibility.
+Screenshots alone do not verify interactions or screen-reader behavior.
+
+Fix observed issues and repeat the affected checks.
+Do not claim accessibility compliance or browser coverage beyond what was checked.
+
+## Report
+
+Summarize the design decisions, implementation, and verification.
+Identify missing assets, untested browsers, or other limitations.
+Keep the report proportional to the task rather than forcing a large design-specification template.

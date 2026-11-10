@@ -1,0 +1,10 @@
+[review]
+# `review` has no working-tree action of its own; pin it so prefix+shift+h is always vs HEAD.
+default_target = "working"
+# Reload the existing plugin pane instead of splitting another one.
+reuse_pane = true
+
+[hunk]
+# Match mise hunk so session reload talks to the same daemon as prefix+shift+b.
+bin = "hunk"
+extra_args = ["--wrap", "--watch"]

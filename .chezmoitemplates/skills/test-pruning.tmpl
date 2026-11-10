@@ -1,0 +1,60 @@
+---
+name: test-pruning
+description: "Use when: removing redundant tests or consolidating a test suite without losing behavior coverage"
+---
+
+# Prune redundant tests
+
+Reduce maintenance cost without removing unique behavior coverage.
+A smaller test count is not a goal by itself.
+
+## Inputs and scope
+
+Use the target files and constraints from the user's current request.
+Ask for the target when it is unclear.
+Read applicable project instructions, test configuration, and relevant production code.
+Use the project's actual test commands; do not infer a runner from file extensions alone.
+Keep existing user changes intact.
+
+## Before editing
+
+1. Run the relevant tests and record the baseline.
+2. Identify the behavior, inputs, assertions, setup, and dependencies each candidate test covers.
+3. For each proposed removal, name the retained or replacement test that covers the same behavior.
+4. Keep the original test when equivalent coverage is uncertain.
+
+## Decide what to retain
+
+- Keep tests for distinct outcomes, edge cases, errors, and externally observable interactions.
+- Keep malformed-input tests at runtime trust boundaries. Static types do not validate external data.
+- Keep regression tests unless another test detects the same regression.
+- Mocks, internal-state assertions, and test-layer placement are review signals, not deletion rules.
+- A mocked interaction can verify a contract, such as preventing duplicate writes or network requests.
+- Do not replace isolated tests with databases or network dependencies solely to reduce mocking.
+- Move edge cases between test layers only after replacement coverage exists and passes.
+- Preserve integration coverage of wiring and boundary behavior that unit tests cannot verify.
+
+## Make the smallest change
+
+- Consolidate repeated setup or parameterize equivalent cases using the existing framework.
+- Preserve every input and assertion that distinguishes behavior.
+- Add replacement coverage before deleting the original test.
+- Remove only imports, mocks, and fixtures made unused by these changes.
+- Check setup, teardown, and consolidated tests before removing shared dependencies.
+- Do not introduce a dependency or change production behavior to simplify pruning.
+
+## Verify
+
+Run the changed tests and related tests that share fixtures or dependencies.
+Run the repository's required checks.
+Compare the final coverage map with the baseline; passing remaining tests alone proves no equivalence.
+Use an existing regression reproduction or mutation check when practical.
+Restore removed coverage if verification fails or equivalence remains uncertain.
+Do not discard unrelated user changes during recovery.
+
+## Report
+
+List removed or consolidated tests and their retained or replacement coverage.
+Report verification commands, results, and any unresolved coverage questions.
+Do not claim full coverage preservation without evidence.
+Stage or commit only when the user or repository workflow requires it.

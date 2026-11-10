@@ -1,0 +1,69 @@
+---
+name: research-ask
+description: "Use when the user asks a question that should be answered from the notes in ~/Research, or asks for a written synthesis saved to answers/."
+---
+
+# Answer From Notes
+
+The notes are the evidence budget. Answer inside it and name the edges clearly; a short honest answer
+beats a complete-sounding one.
+
+## 1. Pick the evidence
+
+Read `INDEX.md` first — it exists so this step is cheap. Choose the notes whose listed claims bear on
+the question, then read those notes (not the PDFs; the quotes are already there).
+
+If nothing in the folder covers the question, say **"not covered by your sources"** and name the two or
+three searches `/research-find` should run. Never fill the gap from memory, and never bury that
+admission below a plausible answer.
+
+## 2. Answer
+
+Structure the reply as:
+
+- **What your sources say** — each point with an inline citation `(Author Year, p. N)` taken from a note's
+  quote. No citation, no point.
+- **Where they disagree** — if notes conflict, give both positions and which has stronger evidence, with
+  the reason (larger sample, primary rather than secondary, more recent design). Do not average them into
+  a false middle.
+- **What is unresolved** — the specific question the folder cannot answer yet.
+- **Single source** — flag explicitly when every supporting note traces to one study. Three write-ups of
+  one trial are one source.
+
+Write for a non-specialist: plain sentences, technical terms defined once at first use, no jargon that
+the sources themselves do not require.
+
+## 3. Save it
+
+When the user wants it kept, write `answers/<YYYY-MM-DD>-<slug>.md`:
+
+```markdown
+# <Question>
+
+## Answer
+<The reply as written, with inline citations.>
+
+## Evidence
+| Claim | Source | Tier | Locator |
+|-------|--------|------|---------|
+| <claim> | <note file> | B | p. 4 |
+
+## Gaps
+- <What the folder cannot answer, and the search that would fix it>
+
+## Next sources worth finding
+- <1-3 specific searches or source types>
+```
+
+Only the coordinator of the question writes the file — do not also edit notes or index while answering.
+
+## Rules
+
+- Never present a note's claim more strongly than the note's own quote supports. If the note says
+  "in adults with ADHD", do not write "in people with ADHD".
+- Numbers come from notes verbatim. If a number is not in a note, it does not go in the answer.
+- Distinguish *sources report* from *therefore*. Recommendations are yours and must be labelled as
+  judgement, not as findings.
+- If the question is really a request for professional advice (medical, legal, financial), answer what the
+  sources say and say plainly that the decision belongs with a qualified professional.
+- No git, no commits, no index rebuilds. Files on disk are the whole persistence story.

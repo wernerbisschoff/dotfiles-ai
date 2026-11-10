@@ -1,0 +1,60 @@
+---
+name: merge-conflict-resolver
+description: "Use when diagnosing or resolving conflicts in a merge, rebase, or cherry-pick."
+---
+
+# Resolve conflicts without losing intent
+
+Use the current request and repository state.
+Do not start, abort, or continue a Git operation unless the request authorizes that action.
+
+## Establish the state
+
+1. Inspect `git status`, unmerged paths, and the active operation.
+2. Record unrelated staged and unstaged changes. Do not reset, stash, or overwrite them.
+3. Identify the commits and branches involved.
+4. Inspect conflicted files and their base, ours, and theirs versions.
+   `git ls-files -u` identifies available index stages; some stages are absent for add/delete conflicts.
+5. During a rebase, ours is the rebased-onto history and theirs is the commit being replayed.
+   Do not assume these labels mean the user's branch and the incoming branch in every operation.
+
+## Decide by behavior
+
+Trace the purpose of both changes and the relevant callers and tests.
+Integrate compatible changes from both sides after checking ordering, error handling, and side effects.
+Do not blindly paste both sides together or discard one side without a behavioral reason.
+An intentional deletion, security restriction, or API replacement must not be undone merely to preserve old code.
+
+For incompatible requirements, explain the choices and ask.
+Do not invent version numbers, function signatures, or release decisions.
+For binary, rename, delete, and generated-file conflicts, follow the repository's source-of-truth rules.
+Regenerate artifacts only with the appropriate tools and permission.
+Respect restrictions on lockfiles and sensitive files.
+
+## Resolve and verify
+
+- Edit only authorized conflicted content and necessary related adjustments.
+- Review each resolution before staging that specific path.
+- Confirm no conflict markers remain in the resolved content.
+- Inspect `git diff --check`, `git diff --cached --check`, and the staged diff.
+- Confirm `git diff --name-only --diff-filter=U` is empty before continuation.
+- Run relevant tests and repository-required checks.
+- Verify the intended behavior from both sides, including intentional removals.
+
+Unmerged-path checks alone do not prove semantic correctness.
+If verification fails, stop and report the state instead of forcing completion.
+
+## Continue only within the approved scope
+
+Use the active operation's continuation command, such as `git rebase --continue`,
+`git cherry-pick --continue`, or `git merge --continue`.
+A squash merge has no merge continuation; create its commit through the commit workflow.
+Review everything the continuation would commit, including already staged non-conflicting changes.
+For repeated rebase conflicts, inspect the new commit and repeat verification.
+Never bypass hooks, skip a commit, abort, or force-push without the required authorization.
+
+## Report
+
+List resolved files, important decisions, verification, and the current operation state.
+State whether changes are staged, committed, or still need a decision.
+Keep unresolved questions explicit.

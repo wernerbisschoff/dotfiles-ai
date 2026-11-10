@@ -1,0 +1,15 @@
+{{ template "AGENTS.md.tmpl" . }}
+
+# Codex Tool Guidance
+
+## zvec-grep
+
+Follow the shared retrieval and index lifecycle rules above.
+
+- Use the available `zvec_grep_search` MCP tool for semantic discovery.
+- Pass a daemon-visible absolute workspace `root` on each search call.
+- Use `zg query --rg <pattern>` for exact lookup; it requires no index.
+- If MCP is unavailable, use `zg query "<question>"` for semantic discovery.
+- Pass `queries: [...]` for multiple angles and `fuse: true` for one ranked list.
+- Inspect `freshness` and `background_refresh` when supplied. Do not treat `served_from_current_index` as proof that source is unchanged.
+- Confirm uncertain snippets against current files. Reuse an existing background refresh instead of starting another.

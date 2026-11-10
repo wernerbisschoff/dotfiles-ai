@@ -1,0 +1,87 @@
+---
+name: research-read
+description: "Use when a PDF or saved page in ~/Research/sources should be turned into a note with quotable claims and limits, or when the user asks what one specific source says."
+---
+
+# Read a Source
+
+Input is a path in `~/Research/sources/` or a URL. Output is `~/Research/notes/<slug>.md` and one
+updated line in `INDEX.md`. The note is what future sessions will trust, so its quotes matter more
+than its prose.
+
+## Get the text
+
+For a local PDF, fetch it through the harness's web tool with the local path — it extracts the text
+without any extra installation:
+
+```
+web_access  op=fetch  input=~/Research/sources/<file>.pdf
+```
+
+For a URL, fetch the page the same way. Then check the extraction: if it yields under ~500 words for a
+substantial document, the extraction failed — report that and do not write a note from a fragment.
+Scanned PDFs have no text layer; say so, and note that OCR is needed rather than guessing content.
+
+## Write the note
+
+Fixed sections, in this order. Short and factual beats long and fluent.
+
+```markdown
+---
+source: <file or url>
+authors: <surnames + et al.>
+year: <year>
+title: <full title>
+venue: <journal or preprint server>
+doi_or_url: <identifier>
+study_type: <RCT | cohort | cross-sectional | qualitative | review | documentation | preprint>
+tier: <A | B | C | D>
+read_on: <YYYY-MM-DD>
+---
+
+# <Short title>
+
+## Claims
+- <One checkable claim, stated plainly>. "<verbatim quote>" (p. N)
+- ...
+
+## Method and sample
+- Design, N, population, duration, what was compared. Every number exactly as printed.
+
+## Limits the authors state
+- ...
+
+## What this does not support
+- <The tempting generalisation this source cannot carry, and why>
+- <Population, setting, or duration that would be needed for it to carry>
+
+## Contradicts
+- <Note file and claim, or "none found in ~/Research/notes/">.
+```
+
+Rules for `Claims`:
+
+- **No quote, no claim.** Every bullet carries a verbatim quote and a locator (page, section, or table).
+  If a sentence cannot be anchored, write `(unverified)` after it or delete it.
+- Preserve numbers exactly — sample sizes, effect sizes, confidence intervals, p-values, dates, doses.
+  Never round, never re-derive, never "approximately".
+- One claim per bullet. A bullet containing "and" usually hides two claims, one of which is unsupported.
+- Do not put your interpretation in `Claims`. Interpretation belongs in `What this does not support`.
+- If the abstract and the results disagree, the results win and the disagreement is worth one line.
+
+## Update the index
+
+Replace that source's `not read yet` line in `INDEX.md` with the two or three claims a future session
+would need to decide whether to reopen the note:
+
+```markdown
+- <slug> | <year> | tier B | plans the deficit, not plan recall (45 vs 45, p <.001)
+```
+
+## Before finishing
+
+- If the note contradicts an existing note, say so to the user directly and cite both files. Do not
+  silently overwrite the older note.
+- If the source is weaker than its abstract suggests (small N, self-report only, author self-evaluation),
+  state that in one sentence at the top of the reply, before the summary.
+- Do not edit, rename, or delete anything in `sources/`.

@@ -1,0 +1,47 @@
+---
+name: code-refactoring
+description: "Use when planning or implementing a behavior-preserving refactor."
+---
+
+# Refactor without changing behavior
+
+Use the requested code, intent, and constraints.
+If the user asks for a plan or review, do not implement or commit changes.
+
+## Establish the boundary
+
+- Read the relevant implementation, callers, and tests.
+- Identify observable behavior: public interfaces, errors, side effects, ordering, and important performance constraints.
+- Record existing test results. Separate baseline failures from regressions.
+- When coverage is missing, add a small characterization test or another repeatable check before changing non-trivial logic.
+- If baseline failures prevent meaningful verification, report the limitation or ask for direction.
+  Do not silently repair unrelated bugs.
+
+## Choose the smallest useful change
+
+Explain the concrete maintenance problem with source locations.
+Choose a technique that solves that problem without adding unnecessary layers or dependencies.
+A long function or parameter count is a review signal, not an automatic reason to add abstractions.
+Do not replace straightforward branching with polymorphism unless the use case benefits.
+
+Prefer clear names, focused functions, and explicit data flow.
+Keep comments that explain non-obvious reasons, constraints, or tradeoffs.
+Update documentation and comments when the refactor changes what they describe.
+
+## Implement when requested
+
+1. Describe the intended steps and the behavior each must preserve.
+2. Make one coherent change at a time.
+3. Run the relevant checks after each meaningful step.
+4. Review the final diff for unintended API, error, ordering, or side-effect changes.
+5. Run repository-required verification.
+
+Keep the original regression coverage.
+Do not rewrite failing assertions merely to accommodate a behavior change.
+If behavior must change, separate that work and obtain agreement on the new scope.
+
+## Report
+
+Summarize the maintenance benefit, changed files, and verification.
+State any behavior or performance claims that remain unverified.
+Stage or commit only when the user or repository workflow requires it.

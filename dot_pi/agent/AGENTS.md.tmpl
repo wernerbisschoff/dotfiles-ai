@@ -1,0 +1,32 @@
+{{ template "AGENTS.md.tmpl" . }}
+
+# Pi Tool Guidance
+
+## Runtime Permissions
+
+Use the active tool definitions and enforced permissions.
+This repository does not explicitly register the previously documented `/perm` extension.
+Do not assume its commands, mode settings, or sensitive-path blocks exist.
+Verify runtime protection before relying on it; written safety rules are not an enforcement mechanism.
+
+# AI Dotfiles Source of Truth
+
+Edit AI-agent configuration in `~/.local/share/chezmoi-ai`, or its active worktree.
+Do not edit generated destinations under `~/.pi/`, `~/.codex/`, or `~/.config/`.
+Preview the affected destinations, then run `mise run apply -- --exclude=scripts <destination>...` from that checkout.
+Bare `mise apply` applies all configuration and eligible installation scripts; use it only when requested.
+Follow the active user and repository commit policy.
+
+## zg (zvec-grep)
+
+The zvec-grep MCP search tool runs indexed semantic search (transport: `zg server --stdio`, per `mcp.json`). Routing rules live in `<exploration_gate>` above — this block covers Pi specifics only.
+
+- Semantic discovery → MCP search with `{"root":"<absolute workspace>","query":"<question>"}` (multi-angle: `queries: [...]`, single ranked list: `fuse: true`).
+- Exact words, identifiers, paths, regex → `zg query --rg <pattern>` via bash (no index needed).
+- If MCP is unavailable, use `zg query "<question>"` for semantic discovery.
+- Follow the shared index lifecycle policy. Reuse existing background refreshes.
+- A sufficient, current snippet counts as read evidence. Confirm uncertain snippets against current files.
+
+## codemode
+
+When Pi `codemode` is available, prefer it over separate tool calls: batch independent calls into one call (`Promise.allSettled`), chain dependent ones, filter large output in-script. Check exit codes; do not hide relevant output. Sequential steps (staging, commits) stay sequential — stop at the first failure.

@@ -1,0 +1,72 @@
+# Mise configuration for the dotfiles-ai chezmoi repository
+# Run `mise run <task>` to execute tasks
+
+[env]
+_.file = ".env"
+
+[settings]
+experimental = true
+
+[tasks.apply]
+description = "Apply chezmoi configuration and eligible installation scripts (optional targets)"
+run = "bash .chezmoitemplates/scripts/apply.sh"
+
+[tasks.add]
+description = "Track a new file into chezmoi (AI scope)"
+run = 'chezmoi -S {{config_root | quote}} add'
+
+[tasks.diff]
+description = "Show chezmoi diff (AI scope)"
+run = 'chezmoi -S {{config_root | quote}} diff'
+
+[tasks.status]
+description = "Show chezmoi status (AI scope)"
+run = 'chezmoi -S {{config_root | quote}} status'
+
+[tasks.edit]
+description = "Edit a chezmoi source file"
+run = 'chezmoi -S {{config_root | quote}} edit'
+
+[tasks.verify]
+description = "Verify chezmoi configuration"
+run = 'chezmoi -S {{config_root | quote}} verify'
+
+[tasks.test]
+description = "Test commit helper, Python plugin, and deployment safeguards"
+run = "bash .chezmoitemplates/tests/commit-helper.sh && PYTHONDONTWRITEBYTECODE=1 python3 .chezmoitemplates/tests/plannotator-review.py && PYTHONDONTWRITEBYTECODE=1 python3 .chezmoitemplates/tests/deployment.py"
+
+[tasks.lint]
+description = "Lint shell scripts"
+run = "shellcheck dot_agents/skills/*/executable_*.tmpl .chezmoitemplates/scripts/*.sh run_once_after_*.sh bootstrap.sh"
+
+[tasks.format]
+description = "Format shell scripts"
+run = "shfmt -w dot_agents/skills/*/executable_*.tmpl run_once_after_*.sh"
+
+[tasks.fix]
+description = "Auto-fix shell script formatting and re-lint"
+# Format first (auto-fixer), then lint to verify. The shfmt step uses `|| true` so a
+# pre-existing parse error on one file does not abort the whole task — the user still
+# sees both outputs and can address the parse error separately.
+run = "shfmt -w dot_agents/skills/*/executable_*.tmpl run_once_after_*.sh || true; shellcheck dot_agents/skills/*/executable_*.tmpl run_once_after_*.sh"
+
+[tasks.install]
+description = "Install the AI toolchain (mise takes version pins from [tools])"
+run = "mise install"
+
+[tasks.patch-pi]
+description = "Re-apply local patches to pi npm packages after an update"
+run = [
+  "bash run_after_patch-acp-summary-budget.sh",
+  "bash run_after_patch-pi-lens-tool-schema.sh",
+]
+
+[tasks.pi-update]
+description = "Update pi and its packages, then re-apply the local package patches"
+run = "pi update --all"
+depends_post = ["patch-pi"]
+
+[tasks.upgrade-ai]
+description = "Upgrade pi, herdr, and hunk, then re-apply the local package patches"
+run = "mise upgrade --bump npm:@earendil-works/pi-coding-agent herdr hunk"
+depends_post = ["patch-pi"]

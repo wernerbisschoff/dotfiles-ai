@@ -1,0 +1,12 @@
+id = "local.plannotator-review"
+name = "Plannotator Review"
+version = "0.1.0"
+min_herdr_version = "0.8.0"
+description = "Run Plannotator review and send feedback to the current agent"
+platforms = ["macos", "linux"]
+
+[[actions]]
+id = "review"
+title = "Review code diff with Plannotator"
+contexts = ["pane"]
+command = ["python3", "review.py"]

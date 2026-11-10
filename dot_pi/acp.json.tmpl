@@ -1,0 +1,32 @@
+{{- $workLaptop := eq .chezmoi.hostname .ai.hosts.workLaptop -}}
+{
+  "compress": {
+    "nudgeGrowthTokens": 65000,
+    "minPressureBenefitTokens": 30000,
+    "maxContextLimit": "0.55",
+    "providers": {
+      "openai-codex": {
+        "models": {
+          "gpt-6.1-sol": {
+            "maxContextLimit": "0.65",
+            "nudgeGrowthTokens": 100000,
+            "minPressureBenefitTokens": 50000,
+            "maxSummaryLength": 35000
+          }
+        }
+      }
+    },
+    "maxSummaryLength": 15000
+  },
+  "idleCompact": {
+    "enabled": true,
+    "idleMinutes": {{ ternary 10 29 $workLaptop }}
+  },
+  "toolPrompts": {
+    "compress": {
+      "paramDescriptions": {
+        "summaryMaxChars": "Leave unset to use the default (15000 chars general, 35000 on sol). Only set a HIGHER value for critical content that needs more detail. Do not set a lower value; the default already allows ample room."
+      }
+    }
+  }
+}
