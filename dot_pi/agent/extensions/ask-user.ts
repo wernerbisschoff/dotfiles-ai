@@ -309,6 +309,7 @@ export default function askUser(pi: ExtensionAPI) {
 							handleInput,
 						};
 					},
+					{ blocked: { kind: "question", message: params.question } },
 				);
 
 				if (!result) {
