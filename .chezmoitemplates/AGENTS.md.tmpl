@@ -82,13 +82,15 @@ Give concurrent editors separate file ownership; keep coupled changes with one a
 </coding_discipline>
 
 <hitl_review>
-Use plannotator CLI for human-in-the-loop review/sign-off instead of chat-only questions. Do not spawn/switch into plan mode.
+Use plannotator CLI for human sign-off on plans and specs instead of chat-only questions. Do not spawn/switch into plan mode.
 
-- Plans: `plannotator annotate <plan.md> --gate --json`; do not execute until approved.
-- Code changes: `plannotator review --diff-type uncommitted --no-git-remote-check --json`; address annotations; never self-approve.
+- Plans and specs: `plannotator annotate <file> --gate --json`; do not execute until approved. These are where the human authors rather than approves, which is the act worth the friction. Never self-approve.
+- Code changes take no plannotator gate. Tests, types, lint, and the 5-line report carry the review; the human reads the contract, not the diff.
+- Escalate a code change to a gate only when it needs a decision no test can make — a public contract, a data or security path, or more than one behaviour.
 - Runner-managed phases (BuildBard micro RED/GREEN/DIRECT/JUDGE/REFACTOR): no standalone code-review gate; runner owns sign-off.
-- Scope single changes with `--diff-type`/`--base`/`--patch-file`; re-reviews use `--patch-file <patch> --gate`.
 - Batched decisions: `plannotator annotate <file> --gate --json`. Docs/specs: `plannotator annotate <file>` (`--gate` if sign-off).
+- Re-reviews use `--patch-file <patch> --gate` so the second look sees only what changed since the decision.
+- State what would make you reject before a gate opens. A gate you cannot reject is a click, not a gate.
 - Wait for JSON `decision` (`approved`/`annotated`/`dismissed`); branch on it, never on message wording. `dismissed` is not approval; an aborted run carries no decision.
 - Timeout >=1800s; never cancel mid-review. Pass `--no-git-remote-check` when the remote needs an interactive key.
 - Review context: short overview (outcome/rationale/trade-off/evidence); prefer high-level notes over inline; one idea per note; cite intent; mark inference.
