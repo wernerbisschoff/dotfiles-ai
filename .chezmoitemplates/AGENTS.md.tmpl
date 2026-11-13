@@ -74,7 +74,7 @@ Give concurrent editors separate file ownership; keep coupled changes with one a
 - Add only useful regression or verification tests. Require evidence before deleting tests as redundant; passing remaining tests does not prove preserved coverage. Keep runtime validation tests for untrusted inputs despite static types.
 - Before declaring completion, run the smallest sufficient tests, lint, type-check, and build required by the repository.
 - Reuse a skill body already present and current in context. Reread it after context loss, source changes, or incomplete reads.
-- Hard limit: one behavior per change within 3 files and 200 changed lines. Over the limit, split the ticket, not the commit. A diff too large to hold in working memory cannot be reviewed, and anything visible only inside a function body is undocumented for the reviewer.
+- Keep one behavior per change. Aim for roughly 3 production files and 200 changed production-code lines as a reviewability guideline, not a hard limit. Exclude tests, fixtures, and documentation from that estimate; never reduce useful coverage to meet it. Split work when independent behaviors or review complexity warrant it, not solely to satisfy a numeric budget.
 - Lead with the contract: types, signatures, invariants, and error paths before implementations. A reviewer should understand the change without reading function bodies.
 - Make illegal states unrepresentable rather than documenting that they must not occur.
 - Keep mechanical moves (rename, move, format, dependency bump) in a commit separate from behavior changes.
