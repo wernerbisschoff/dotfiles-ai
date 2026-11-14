@@ -6,6 +6,7 @@
 ./README.md
 ./BILLION-CONTEXT.md
 ./bootstrap.sh
+./bootstrap.ps1
 ./LICENSE
 
 # === Pi ===
@@ -15,7 +16,9 @@
 !.pi/agent/AGENTS.md
 !.pi/agent/extensions
 !.pi/agent/themes
+{{ if ne .chezmoi.os "windows" -}}
 !.pi/agent/skills
+{{ end -}}
 !.pi/agent/prompts
 !.pi/agent/mcp.json
 # Settings are managed. Pi also updates them at runtime; review changes before applying.
@@ -40,3 +43,28 @@ memory.md
 **/*.pyo
 .zvec-grep/**
 .codebase-index/**
+
+# === Platform gating ===
+{{ if eq .chezmoi.os "windows" -}}
+# Skill directories are linked as NTFS junctions by run_after_link-skills.ps1 —
+# `symlink_` targets need SeCreateSymbolicLinkPrivilege (Developer Mode or admin).
+.pi/agent/skills
+.codex/skills
+
+# Unix shell integration — meaningless on Windows.
+.config/zsh/**
+
+# chezmoi execs scripts directly on Windows (no shebang support), so the .sh
+# twins fail with "%1 is not a valid Win32 application". Use the .ps1 ports.
+# Patterns are matched against the rendered name (chezmoi strips run_*_ prefixes).
+install-ai-mise-tools.sh
+install-plannotator.sh
+npm-globals.sh
+seed-context-docs.sh
+upgrade-ai-mise-tools.sh
+patch-acp-summary-budget.sh
+patch-pi-lens-tool-schema.sh
+{{ else -}}
+# PowerShell ports are Windows-only.
+*.ps1
+{{ end -}}

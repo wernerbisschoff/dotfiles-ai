@@ -10,6 +10,8 @@ experimental = true
 [tasks.apply]
 description = "Apply chezmoi configuration and eligible installation scripts (optional targets)"
 run = "bash .chezmoitemplates/scripts/apply.sh"
+# Windows runs the .ps1 ports instead; .sh scripts are excluded by .chezmoiignore.
+run_windows = 'chezmoi -S {{config_root | quote}} apply'
 
 [tasks.add]
 description = "Track a new file into chezmoi (AI scope)"
@@ -60,6 +62,7 @@ run = [
   "bash run_after_patch-acp-summary-budget.sh",
   "bash run_after_patch-pi-lens-tool-schema.sh",
 ]
+run_windows = "powershell -NoProfile -ExecutionPolicy Bypass -File run_after_patch-pi-packages.ps1"
 
 [tasks.pi-update]
 description = "Update pi and its packages, then re-apply the local package patches"
