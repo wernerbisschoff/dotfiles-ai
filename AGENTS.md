@@ -89,6 +89,25 @@ Never edit generated destinations directly.
 
 Use `perl -i -pe` (not `sed -i`) for in-place edits — different syntax on macOS vs Linux.
 
+### Windows
+
+The same applies, with these rules:
+
+- Every run script has a `.ps1` twin; `.chezmoiignore` excludes the `.sh` one on
+Windows and the `.ps1` one everywhere else. Change both when behaviour changes.
+chezmoi execs scripts directly on Windows (no shebang), so a bash script fails
+with `%1 is not a valid Win32 application`.
+- Chezmoi ignore patterns match the rendered target name, which is why the
+windows block lists `install-ai-mise-tools.sh` rather than `run_once_after_*.sh`.
+- A `!` include always beats a later ignore, so `!.pi/agent/skills` is itself
+conditional: the junction script creates that link on Windows instead.
+- Keep `.ps1` sources ASCII-only. Windows PowerShell 5.1 decodes a BOM-less file
+as ANSI; an em dash (`E2 80 94`) then yields `U+201D`, which PowerShell treats
+as a string delimiter and the file stops parsing.
+- `$Label:` inside a double-quoted string is a scope qualifier error — use
+`${Label}:`.
+- `mise run apply` and `mise run patch-pi` carry `run_windows` overrides.
+
 ## Commits
 
 Follow [`CONTRIBUTING.md`](./CONTRIBUTING.md) for commit message conventions (emoji prefix + Conventional Commits) when creating commits.
@@ -126,6 +145,9 @@ type list stays scalar-only: object/array branches would also need
 Pi loads packages at startup, so restart pi after patching. To re-apply both patches
 right after an update, use `mise run patch-pi`; `mise run pi-update` (`pi update --all`)
 and `mise run upgrade-ai` do this for you. Bare `pi update --all` does not.
+
+On Windows both patches live in `run_after_patch-pi-packages.ps1` as literal
+`String.Replace` calls with the same rationale, and `mise run patch-pi` runs it.
 
 ## Documentation Lookup
 

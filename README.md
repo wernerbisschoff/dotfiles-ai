@@ -66,6 +66,38 @@ If `~/.local/share/chezmoi-ai` already exists, run that script only.
 Do not use `chezmoi init` after this clone — that would clone again.
 Needs no companion OS/shell repo; clone and run it on its own.
 
+## Windows
+
+Everything here is platform-neutral except the shell installers, so the configs
+render unchanged on Windows. `bootstrap.ps1` is the entry point:
+
+```powershell
+gh repo clone wernerbisschoff/dotfiles-ai $HOME\.local\share\chezmoi-ai
+$HOME\.local\share\chezmoi-ai\bootstrap.ps1
+```
+
+What differs on Windows (all driven by `.chezmoiignore`):
+
+- The `.sh` installers are excluded and the `.ps1` twins run instead. chezmoi
+execs scripts directly on Windows rather than via a shebang, so a bash script
+fails with `%1 is not a valid Win32 application`.
+- `~/.pi/agent/skills` and `~/.codex/skills` are NTFS junctions created by
+`run_after_link-skills.ps1`, not `symlink_` targets: creating a real symlink
+needs Developer Mode or an elevated shell, and a refused symlink aborts the
+whole apply. (pi also reads `~/.agents/skills` natively, so its link is
+belt-and-braces; Codex needs its own.)
+- `~/.pi/agent/settings.json` gains `shellPath`, pointing at pi's bundled
+git-bash (`~/.pi/agent/win-git-bash/bin/bash.exe`) or, failing that, Git for
+Windows. Without it pi's bash tool has no interpreter to spawn.
+- zsh integration under `~/.config/zsh` is skipped.
+- `herdr` has no Windows build; the mise scripts skip it.
+- Write `.ps1` sources ASCII-only. Windows PowerShell 5.1 decodes a BOM-less
+file as ANSI, which turns an em dash byte sequence into a stray quote
+character and breaks parsing.
+
+`mise run apply` and `mise run patch-pi` use `run_windows` overrides; the
+remaining tasks (`lint`, `format`, `test`) still expect a POSIX toolchain.
+
 ## Toolchain
 
 The AI CLIs (`pi`, `herdr`) are declared as global `mise` tools by
