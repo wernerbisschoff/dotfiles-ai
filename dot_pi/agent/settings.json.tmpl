@@ -1,4 +1,19 @@
 {{- $workLaptop := eq .chezmoi.hostname .ai.hosts.workLaptop -}}
+{{- /*
+  Pi's bash tool needs an explicit interpreter on Windows: there is no /bin/bash.
+  Prefer the git-bash bundled with pi (~/.pi/agent/win-git-bash, ships when pi is
+  installed on Windows), else fall back to a system Git for Windows install.
+  Unix hosts keep pi's default and emit no shellPath at all.
+*/ -}}
+{{- $shellPath := "" -}}
+{{- if eq .chezmoi.os "windows" -}}
+{{-   $piBash := joinPath .chezmoi.homeDir ".pi" "agent" "win-git-bash" "bin" "bash.exe" -}}
+{{-   if stat $piBash -}}
+{{-     $shellPath = $piBash -}}
+{{-   else if stat "C:/Program Files/Git/bin/bash.exe" -}}
+{{-     $shellPath = "C:/Program Files/Git/bin/bash.exe" -}}
+{{-   end -}}
+{{- end -}}
 {
   "compaction": {
     "enabled": true,
@@ -23,6 +38,9 @@
   "defaultProvider": {{ ternary "openai-codex" "opencode-go" $workLaptop | quote }},
   "defaultModel": {{ ternary "gpt-6.1-sol" "deepseek-v4.1-flash" $workLaptop | quote }},
   "tuiMode": "regular",
+{{- if ne $shellPath "" }}
+  "shellPath": {{ $shellPath | quote }},
+{{- end }}
   "selfUpdateCommand": ["mise", "use", "-g", "npm:{packageName}@{version}"],
   "extensionChangelogVersions": {
     "{\"source\":\"npm:pi-lens\",\"scope\":\"user\"}": "4.4.11"
