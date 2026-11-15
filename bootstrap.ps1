@@ -22,6 +22,16 @@ function Write-Ok { param([string]$Message) Write-Host "[OK] $Message" -Foregrou
 function Write-Warn { param([string]$Message) Write-Host "[WARN] $Message" -ForegroundColor Yellow }
 function Test-Command { param([string]$Name) return [bool](Get-Command $Name -ErrorAction SilentlyContinue) }
 
+# --- execution policy --------------------------------------------------------
+# chezmoi run scripts, the shell profile, and the install scripts are all .ps1,
+# which Windows blocks under the client default Restricted. CurrentUser scope
+# needs no elevation.
+$userPolicy = Get-ExecutionPolicy -Scope CurrentUser
+if ($userPolicy -in 'Undefined', 'Restricted') {
+    Write-Info "Setting CurrentUser execution policy to RemoteSigned (was $userPolicy)..."
+    Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned -Force
+}
+
 $HomeDir = [Environment]::GetFolderPath('UserProfile')
 
 # --- mise (installs chezmoi; also provides the AI toolchain) ----------------
