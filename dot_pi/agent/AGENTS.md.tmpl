@@ -9,6 +9,13 @@ This repository does not explicitly register the previously documented `/perm` e
 Do not assume its commands, mode settings, or sensitive-path blocks exist.
 Verify runtime protection before relying on it; written safety rules are not an enforcement mechanism.
 
+# Task Tracking
+
+Use the `todo` tool for multi-step work; it survives compaction and `/reload`, prose does not.
+Call `todo` with action `list` before starting work in a long session, and again after a compression summary lands.
+When the user adds a request while a task is running, add it as a todo immediately and finish the current task first.
+Mark items done as they complete. Leave nothing open only in prose.
+
 # AI Dotfiles Source of Truth
 
 Edit AI-agent configuration in `~/.local/share/chezmoi-ai`, or its active worktree.
