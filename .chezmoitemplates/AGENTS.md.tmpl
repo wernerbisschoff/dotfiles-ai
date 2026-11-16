@@ -82,13 +82,15 @@ Give concurrent editors separate file ownership; keep coupled changes with one a
 </coding_discipline>
 
 <hitl_review>
-Use plannotator CLI for human sign-off on plans and specs instead of chat-only questions. Do not spawn/switch into plan mode.
+Use Plannotator for consequential human decisions or explicitly requested reviews, not as a default step for every task. Do not spawn/switch into plan mode.
 
-- Plans and specs: `plannotator annotate <file> --gate --json`; do not execute until approved. These are where the human authors rather than approves, which is the act worth the friction. Never self-approve.
-- Code changes take no plannotator gate. Tests, types, lint, and the 5-line report carry the review; the human reads the contract, not the diff.
-- Escalate a code change to a gate only when it needs a decision no test can make — a public contract, a data or security path, or more than one behaviour.
-- Runner-managed phases (BuildBard micro RED/GREEN/DIRECT/JUDGE/REFACTOR): no standalone code-review gate; runner owns sign-off.
-- Batched decisions: `plannotator annotate <file> --gate --json`. Docs/specs: `plannotator annotate <file>` (`--gate` if sign-off).
+- Open a gate for unresolved requirements or material scope/architecture trade-offs, breaking public-contract changes, or consequential data-loss, security, or irreversible-action decisions that need human judgment. Merely touching an API, database, or security-related file does not require a gate.
+- Human approval never waives the Definition of Done, acceptance criteria, required checks, or known blocking defects. Never offer "approve anyway" for failed work. Changed requirements need an explicit spec amendment and fresh verification, not a retroactive pass.
+- Routine task plans, implementation, tests, refactors, docs edits, commits, progress updates, and completion reports need no Plannotator session. Use checks and the 5-line report; use ordinary chat for simple clarifications.
+- Plans and specs need sign-off only when they contain a consequential decision above or the user or active workflow explicitly requires approval. Use `plannotator annotate <file> --gate --json`; wait for approval before dependent work. Never self-approve.
+- Batch related decisions at the issue or milestone boundary rather than gating every task. Reuse approval while scope and assumptions hold; reopen only for a material change or a newly discovered risk requiring human judgment.
+- Runner-managed phases (BuildBard micro RED/GREEN/DIRECT/JUDGE/REFACTOR): no standalone review gate; the runner owns sign-off. Preserve explicitly required workflow gates without duplicating them.
+- For a qualifying gate, use `plannotator annotate <file> --gate --json`. Use feedback-only annotation only when requested; creating a document or finishing a task is not itself a review trigger.
 - Re-reviews use `--patch-file <patch> --gate` so the second look sees only what changed since the decision.
 - State what would make you reject before a gate opens. A gate you cannot reject is a click, not a gate.
 - Wait for JSON `decision` (`approved`/`annotated`/`dismissed`); branch on it, never on message wording. `dismissed` is not approval; an aborted run carries no decision.
