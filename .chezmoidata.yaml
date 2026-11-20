@@ -4,3 +4,14 @@ ai:
   hosts:
     workLaptop: Werners-Work
     desktop: werner-desktop
+  # Model profile: `work` for the work laptop, `personal` otherwise.
+  # `main` drives the session; `subagent` pins the default agent model.
+  models:
+    work:
+      provider: openai-codex
+      main: gpt-6.2-sol
+      subagent: gpt-6-luna
+    personal:
+      provider: opencode-go
+      main: deepseek-v4.1-flash
+      subagent: deepseek-v4.1-flash

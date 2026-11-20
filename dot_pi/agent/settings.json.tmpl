@@ -14,6 +14,7 @@
 {{-     $shellPath = "C:/Program Files/Git/bin/bash.exe" -}}
 {{-   end -}}
 {{- end -}}
+{{- $models := index .ai.models (ternary "work" "personal" $workLaptop) -}}
 {
   "compaction": {
     "enabled": true,
@@ -36,8 +37,8 @@
   "treeFilterMode": "user-only",
   "hideThinkingBlock": true,
   "defaultThinkingLevel": "high",
-  "defaultProvider": {{ ternary "openai-codex" "opencode-go" $workLaptop | quote }},
-  "defaultModel": {{ ternary "gpt-6.1-sol" "deepseek-v4.1-flash" $workLaptop | quote }},
+  "defaultProvider": {{ $models.provider | quote }},
+  "defaultModel": {{ $models.main | quote }},
   "tuiMode": "regular",
 {{- if ne $shellPath "" }}
   "shellPath": {{ $shellPath | quote }},

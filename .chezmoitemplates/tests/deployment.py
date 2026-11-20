@@ -74,7 +74,7 @@ class DeploymentTests(unittest.TestCase):
 
     def test_pi_model_defaults_are_host_specific(self):
         for hostname, provider, model in (
-            ("Werners-Work", "openai-codex", "gpt-6.1-sol"),
+            ("Werners-Work", "openai-codex", "gpt-6.2-sol"),
             ("personal-laptop", "opencode-go", "deepseek-v4.1-flash"),
         ):
             with self.subTest(hostname=hostname):
@@ -88,6 +88,26 @@ class DeploymentTests(unittest.TestCase):
                 settings = json.loads(result.stdout)
                 self.assertEqual(settings["defaultProvider"], provider)
                 self.assertEqual(settings["defaultModel"], model)
+
+
+    def test_pi_subagent_model_defaults_are_host_specific(self):
+        for hostname, model in (
+            ("Werners-Work", "openai-codex/gpt-6-luna"),
+            ("personal-laptop", "opencode-go/deepseek-v4.1-flash"),
+        ):
+            with self.subTest(hostname=hostname):
+                result = subprocess.run(
+                    ["chezmoi", "-S", str(ROOT), "--override-data",
+                     json.dumps({"chezmoi": {"hostname": hostname}}),
+                     "execute-template", "--file",
+                     str(ROOT / "dot_pi/agent/agents/general-purpose.md.tmpl")],
+                    capture_output=True, text=True, check=True,
+                )
+                model_lines = [
+                    line for line in result.stdout.splitlines()
+                    if line.startswith("model:")
+                ]
+                self.assertEqual(model_lines, [f"model: {model}"])
 
 
     def test_skill_templates_render_without_runtime_placeholders(self):
