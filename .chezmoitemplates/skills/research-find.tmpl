@@ -43,8 +43,13 @@ Never touch anything else in the home directory, and never create a git reposito
 
 ## Keys
 
-Two keys, one file: `~/Research/.env`, loaded at startup by the Pi extension when `pi` is launched
-from this folder. Never commit it; `chmod 600 ~/Research/.env`.
+Two academic keys, one file: `~/Research/.env`, loaded at startup by the Pi extension when `pi` is
+launched from this folder. Never commit it; `chmod 600 ~/Research/.env`.
+
+Web search and page fetching do **not** belong here: they use the harness's own search provider key
+(TinyFish in this setup, with Firecrawl as the fetch fallback), configured once for the harness rather
+than per project. If web search fails while the two keys below are set, the fault is the harness
+provider, not the research folder.
 
 ```bash
 # OpenAlex — free. One call with an email; the key arrives by link and works after the click.
