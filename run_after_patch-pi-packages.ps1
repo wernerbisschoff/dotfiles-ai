@@ -2,13 +2,13 @@
 <#
 .SYNOPSIS
     Re-apply the local pi package patches (Windows port of
-    run_after_patch-acp-summary-budget.sh + run_after_patch-pi-lens-tool-schema.sh).
+    run_after_patch-acp-summary-budget.sh, run_after_patch-pi-lens-tool-schema.sh,
+    and run_after_patch-piolium-model.sh).
 
 .DESCRIPTION
-    Two upstream defects are worked around by rewriting a single line in the
-    installed dist bundle. Both patches are literal, idempotent replacements and
-    both are skipped silently when the package is absent, so this survives
-    package updates and machines that do not install the package at all.
+    Local package workarounds rewrite individual lines in installed package
+    sources. Replacements are literal and idempotent; absent packages are
+    skipped, so this survives package updates and optional installations.
 
     1. billion-context-pi-lean budgets every summary at
        ceil(summaryMaxChars / 3) tokens (6667 by default) and calls complete()
@@ -25,7 +25,11 @@
        - including ACP summaries. Unsafe is the only typebox constructor that
        keeps "any JSON value" while emitting a `type` key.
 
-    Pi loads both files at startup - restart pi to pick the patches up.
+    3. Piolium resolves bundled agent model preferences across authenticated
+       providers. Ignore agent model declarations and inherit the active model
+       to avoid selecting a separately billed provider.
+
+    Pi loads these files at startup - restart pi to pick the patches up.
 #>
 $ErrorActionPreference = 'Stop'
 
@@ -82,5 +86,13 @@ Update-SourceLine `
     -Original 'commandArguments: Type.Optional(Type.Array(Type.Unknown(), {' `
     -Patched 'commandArguments: Type.Optional(Type.Array(Type.Unsafe({ type: ["string", "number", "boolean", "null"] }), {' `
     -Label 'pi-lens lsp_navigation schema'
+
+# Keep Piolium audit agents on the active model instead of resolving bundled
+# Sonnet/Opus preferences through another, separately billed provider.
+Update-SourceLine `
+    -Path (Join-Path $nodeModules '@vigolium\piolium\extensions\piolium\agent-runner.ts') `
+    -Original 'const resolvedModel = resolveAgentModel(options.agent.model, options.model, options.modelRegistry);' `
+    -Patched 'const resolvedModel = options.model;' `
+    -Label 'Piolium active model inheritance'
 
 exit 0

@@ -39,7 +39,7 @@ run = "bash .chezmoitemplates/tests/commit-helper.sh && PYTHONDONTWRITEBYTECODE=
 
 [tasks.lint]
 description = "Lint shell scripts"
-run = "shellcheck dot_agents/skills/*/executable_*.tmpl .chezmoitemplates/scripts/*.sh run_once_after_*.sh bootstrap.sh"
+run = "shellcheck dot_agents/skills/*/executable_*.tmpl .chezmoitemplates/scripts/*.sh run_once_after_*.sh run_after_patch-piolium-model.sh bootstrap.sh"
 
 [tasks.format]
 description = "Format shell scripts"
@@ -61,6 +61,7 @@ description = "Re-apply local patches to pi npm packages after an update"
 run = [
   "bash run_after_patch-acp-summary-budget.sh",
   "bash run_after_patch-pi-lens-tool-schema.sh",
+  "bash run_after_patch-piolium-model.sh",
 ]
 run_windows = "powershell -NoProfile -ExecutionPolicy Bypass -File run_after_patch-pi-packages.ps1"
 

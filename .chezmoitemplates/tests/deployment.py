@@ -110,6 +110,39 @@ class DeploymentTests(unittest.TestCase):
                 self.assertEqual(model_lines, [f"model: {model}"])
 
 
+    def test_piolium_patch_preserves_other_content_and_is_safe_to_reapply(self):
+        original = (
+            "const resolvedModel = resolveAgentModel("
+            "options.agent.model, options.model, options.modelRegistry);"
+        )
+        patched = "const resolvedModel = options.model;"
+        for content, expected, warning in (
+            (None, None, False),
+            (f"// before\n\t{original}\n// after\n",
+             f"// before\n\t{patched}\n// after\n", False),
+            (f"\t{patched}\n", f"\t{patched}\n", False),
+            ("// upstream changed\n", "// upstream changed\n", True),
+        ):
+            with self.subTest(content=content), tempfile.TemporaryDirectory() as directory:
+                target = Path(directory) / (
+                    ".pi/agent/npm/node_modules/@vigolium/piolium/"
+                    "extensions/piolium/agent-runner.ts"
+                )
+                if content is not None:
+                    target.parent.mkdir(parents=True)
+                    target.write_text(content)
+                for _ in range(2):
+                    result = subprocess.run(
+                        ["bash", str(ROOT / "run_after_patch-piolium-model.sh")],
+                        env={**os.environ, "HOME": directory},
+                        capture_output=True, text=True, check=True,
+                    )
+                    self.assertEqual("[WARN]" in result.stderr, warning)
+                    if expected is None:
+                        self.assertFalse(target.exists())
+                    else:
+                        self.assertEqual(target.read_text(), expected)
+
     def test_skill_templates_render_without_runtime_placeholders(self):
         for path in sorted((ROOT / "dot_agents/skills").glob("*/SKILL.md.tmpl")):
             with self.subTest(skill=path.parent.name):

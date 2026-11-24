@@ -64,6 +64,7 @@ seed-context-docs.sh
 upgrade-ai-mise-tools.sh
 patch-acp-summary-budget.sh
 patch-pi-lens-tool-schema.sh
+patch-piolium-model.sh
 {{ else -}}
 # PowerShell ports are Windows-only.
 *.ps1
