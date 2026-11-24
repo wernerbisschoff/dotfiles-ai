@@ -34,8 +34,8 @@ description = "Verify chezmoi configuration"
 run = 'chezmoi -S {{config_root | quote}} verify'
 
 [tasks.test]
-description = "Test commit helper, Python plugin, and deployment safeguards"
-run = "bash .chezmoitemplates/tests/commit-helper.sh && PYTHONDONTWRITEBYTECODE=1 python3 .chezmoitemplates/tests/plannotator-review.py && PYTHONDONTWRITEBYTECODE=1 python3 .chezmoitemplates/tests/deployment.py"
+description = "Test commit helper, Python plugin, deployment safeguards, and herdr state reporting"
+run = "bash .chezmoitemplates/tests/commit-helper.sh && PYTHONDONTWRITEBYTECODE=1 python3 .chezmoitemplates/tests/plannotator-review.py && PYTHONDONTWRITEBYTECODE=1 python3 .chezmoitemplates/tests/deployment.py && node .chezmoitemplates/tests/herdr-subagent-busy.mjs"
 
 [tasks.lint]
 description = "Lint shell scripts"
