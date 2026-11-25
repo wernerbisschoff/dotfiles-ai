@@ -1,9 +1,6 @@
-// Companion to herdr's managed herdr-agent-state.ts, which must not be edited
-// (herdr overwrites it on every integration update). That integration reports
-// "working" only while a pi run is active and clears it on agent_settled, so a
-// background subagent leaves the pane reading idle while its child still works.
-// This extension re-claims the pane for as long as a top-level subagent is in
-// flight and hands it back when the last one settles.
+// Reports top-level background subagent activity to Herdr's socket API and
+// herdr-core's OSC 7501 protocol. Parent work and input requests take precedence;
+// this companion only holds "working" while the parent is idle.
 // @ts-nocheck
 import net from "node:net";
 
@@ -14,9 +11,8 @@ const socketEndpoint =
 const paneId = process.env.HERDR_PANE_ID;
 const source = "herdr:pi";
 
-function enabled() {
-  return HERDR_ENV === "1" && !!socketPath && !!paneId;
-}
+const herdrEnabled = HERDR_ENV === "1" && Boolean(socketPath && paneId);
+const coreEnabled = Boolean(process.env.HC_TERMINAL_ID) && process.env.PI_PROGRAM_STATUS !== "0";
 
 // Herdr keeps the report with the highest seq per pane. The managed integration
 // stamps Date.now() * 1000 when it queues a report, so stamping ours at send
@@ -31,7 +27,13 @@ function nextSeq() {
   return lastSeq;
 }
 
-function report(state) {
+function report(state, settledState = "idle") {
+  if (coreEnabled) {
+    const coreState = state === "idle" ? settledState : state;
+    process.stdout.write(`\x1b]7501;state=${coreState}:app=pi\x1b\\`);
+  }
+  if (!herdrEnabled) return;
+
   const request = {
     id: `${source}:subagents:${Date.now()}:${Math.random().toString(36).slice(2)}`,
     method: "pane.report_agent",
@@ -54,7 +56,7 @@ function report(state) {
 }
 
 export default function (pi) {
-  if (!enabled()) {
+  if (!herdrEnabled && !coreEnabled) {
     return;
   }
 
@@ -66,18 +68,26 @@ export default function (pi) {
   let parentIdle = true;
   let claimed = false;
   let blockedCount = 0;
+  let uiBlocked = false;
+  let runResult = "done";
+  let restingState = "idle";
+  let sessionContext;
 
-  // Both reports defer by a tick: the managed integration reports from the same
-  // agent_settled, and sending after it leaves herdr holding our state, not its.
+  function parentIsIdle() {
+    return parentIdle && sessionContext?.isIdle?.() !== false;
+  }
+
+  function canClaim() {
+    return tui && parentIsIdle() && blockedCount === 0 && !uiBlocked && inFlight.size > 0;
+  }
+
+  // Defer past the native parent report, but re-check priority at send time:
+  // a new main run or dialog may have started while this write was queued.
   function claim() {
-    // A dialog waiting for input outranks a running child; the managed
-    // integration owns that report and we must not paint over it.
-    if (!tui || blockedCount > 0 || inFlight.size === 0) {
-      return;
-    }
-    claimed = true;
+    if (!tui || inFlight.size === 0) return;
     setTimeout(() => {
-      if (inFlight.size > 0) {
+      if (canClaim()) {
+        claimed = true;
         report("working");
       }
     }, 0);
@@ -87,28 +97,46 @@ export default function (pi) {
     if (!tui || !claimed || inFlight.size > 0 || !parentIdle) {
       return;
     }
-    claimed = false;
     setTimeout(() => {
-      if (blockedCount === 0 && inFlight.size === 0 && parentIdle) {
-        report("idle");
+      if (tui && claimed && blockedCount === 0 && !uiBlocked && inFlight.size === 0 && parentIsIdle()) {
+        claimed = false;
+        report("idle", restingState);
       }
     }, 0);
   }
 
   pi.on("session_start", (_event, ctx) => {
-    // Only a TUI owns a pane herdr can display; RPC and print modes are headless.
+    // RPC and print modes are headless, even if they inherit terminal identity.
     tui = ctx?.mode === "tui";
+    sessionContext = ctx;
+    parentIdle = ctx?.isIdle?.() !== false;
+  });
+
+  pi.on("session_shutdown", () => {
+    tui = false;
+    inFlight.clear();
+    claimed = false;
   });
 
   pi.on("agent_start", () => {
     parentIdle = false;
+    claimed = false;
+    runResult = "done";
   });
 
-  pi.on("agent_settled", (_event, ctx) => {
+  pi.on("message_end", (event) => {
+    if (event.message?.role === "assistant") {
+      runResult = event.message.stopReason === "error" ? "error" : "done";
+    }
+  });
+
+  pi.on("agent_settled", (event, ctx) => {
     if (ctx?.isIdle?.() !== true) {
       return;
     }
     parentIdle = true;
+    sessionContext = ctx;
+    restingState = event?.aborted ? "idle" : runResult;
     if (inFlight.size > 0) {
       claim();
     } else {
@@ -117,11 +145,34 @@ export default function (pi) {
     }
   });
 
+  // Manual compaction also owns the native status, without an agent_start.
+  function compacted(event) {
+    if (event.reason === "manual") {
+      restingState = event.errorMessage ? "error" : "done";
+      if (event.aborted) restingState = "idle";
+    }
+    claim();
+    release();
+  }
+  pi.on("session_compact", compacted);
+  pi.on("session_compact_failed", compacted);
+
+  pi.on("ui_prompt_start", () => {
+    uiBlocked = true;
+  });
+
+  pi.on("ui_prompt_end", () => {
+    uiBlocked = false;
+    claim();
+    release();
+  });
+
   pi.events.on("herdr:blocked", (data) => {
     blockedCount = Math.max(0, blockedCount + (data?.active ? 1 : -1));
     // The dialog closed while a child still runs: take the pane back.
     if (blockedCount === 0) {
       claim();
+      release();
     }
   });
 
