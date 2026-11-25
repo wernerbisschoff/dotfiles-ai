@@ -13,6 +13,8 @@ const source = "herdr:pi";
 
 const herdrEnabled = HERDR_ENV === "1" && Boolean(socketPath && paneId);
 const coreEnabled = Boolean(process.env.HC_TERMINAL_ID) && process.env.PI_PROGRAM_STATUS !== "0";
+const coreWorking = "\x1b]7501;state=working:app=pi\x1b\\";
+const coreResting = /^\x1b\]7501;state=(?:idle|done|error):app=pi(?::msg=[A-Za-z0-9+/=]+)?\x1b\\$/;
 
 // Herdr keeps the report with the highest seq per pane. The managed integration
 // stamps Date.now() * 1000 when it queues a report, so stamping ours at send
@@ -27,10 +29,11 @@ function nextSeq() {
   return lastSeq;
 }
 
-function report(state, settledState = "idle") {
+function report(state, settledState = "idle", nativeRestingReport) {
   if (coreEnabled) {
-    const coreState = state === "idle" ? settledState : state;
-    process.stdout.write(`\x1b]7501;state=${coreState}:app=pi\x1b\\`);
+    process.stdout.write(state === "working"
+      ? coreWorking
+      : nativeRestingReport ?? `\x1b]7501;state=${settledState}:app=pi\x1b\\`);
   }
   if (!herdrEnabled) return;
 
@@ -72,6 +75,8 @@ export default function (pi) {
   let runResult = "done";
   let restingState = "idle";
   let sessionContext;
+  let nativeRestingReport;
+  let stopIntercepting;
 
   function parentIsIdle() {
     return parentIdle && sessionContext?.isIdle?.() !== false;
@@ -81,8 +86,30 @@ export default function (pi) {
     return tui && parentIsIdle() && blockedCount === 0 && !uiBlocked && inFlight.size > 0;
   }
 
-  // Defer past the native parent report, but re-check priority at send time:
-  // a new main run or dialog may have started while this write was queued.
+  // Pi writes its native status after awaiting every agent_settled handler.
+  // A timer can run before that write. Only replace complete, standalone Pi
+  // resting reports; pass through TUI output and native working/blocked/clear.
+  function interceptCoreStatus() {
+    const write = process.stdout.write;
+    function intercept(chunk, ...args) {
+      if (typeof chunk === "string" && coreResting.test(chunk)) {
+        if (canClaim()) {
+          nativeRestingReport = chunk;
+          claimed = true;
+          chunk = coreWorking;
+        } else {
+          nativeRestingReport = undefined;
+        }
+      }
+      return write.call(this, chunk, ...args);
+    }
+    process.stdout.write = intercept;
+    return () => {
+      if (process.stdout.write === intercept) process.stdout.write = write;
+    };
+  }
+
+  // Re-check priority at send time: a main run or dialog may have started.
   function claim() {
     if (!tui || inFlight.size === 0) return;
     setTimeout(() => {
@@ -100,7 +127,8 @@ export default function (pi) {
     setTimeout(() => {
       if (tui && claimed && blockedCount === 0 && !uiBlocked && inFlight.size === 0 && parentIsIdle()) {
         claimed = false;
-        report("idle", restingState);
+        report("idle", restingState, nativeRestingReport);
+        nativeRestingReport = undefined;
       }
     }, 0);
   }
@@ -110,17 +138,21 @@ export default function (pi) {
     tui = ctx?.mode === "tui";
     sessionContext = ctx;
     parentIdle = ctx?.isIdle?.() !== false;
+    if (tui && coreEnabled) stopIntercepting = interceptCoreStatus();
   });
 
   pi.on("session_shutdown", () => {
     tui = false;
     inFlight.clear();
     claimed = false;
+    stopIntercepting?.();
+    nativeRestingReport = undefined;
   });
 
   pi.on("agent_start", () => {
     parentIdle = false;
     claimed = false;
+    nativeRestingReport = undefined;
     runResult = "done";
   });
 
@@ -148,6 +180,7 @@ export default function (pi) {
   // Manual compaction also owns the native status, without an agent_start.
   function compacted(event) {
     if (event.reason === "manual") {
+      nativeRestingReport = undefined;
       restingState = event.errorMessage ? "error" : "done";
       if (event.aborted) restingState = "idle";
     }

@@ -146,12 +146,13 @@ process.env.HERDR_ENV = "0";
 process.env.HC_TERMINAL_ID = "t-test";
 const osc = [];
 const write = process.stdout.write;
-process.stdout.write = (chunk) => {
+const capture = (chunk) => {
   osc.push(String(chunk));
   return true;
 };
+process.stdout.write = capture;
 const coreStates = () => osc.map((chunk) => {
-  assert.match(chunk, /^\x1b\]7501;state=(working|done|idle|error):app=pi\x1b\\$/);
+  assert.match(chunk, /^\x1b\]7501;state=(working|done|idle|error):app=pi(?::msg=[A-Za-z0-9+/=]+)?\x1b\\$/);
   return chunk.match(/state=([^:]+)/)[1];
 });
 try {
@@ -165,9 +166,21 @@ try {
 
   const settleMark = osc.length;
   await core.fire("agent_settled", { aborted: false }, { isIdle: () => true });
-  process.stdout.write("\x1b]7501;state=done:app=pi\x1b\\"); // Native parent report.
+  await flush(); // Another Pi extension can delay the native report past our timer.
+  assert.deepEqual(coreStates().slice(settleMark), ["working"]);
+  const nativeDone = "\x1b]7501;state=done:app=pi:msg=UmVwbHk=\x1b\\";
+  process.stdout.write(nativeDone);
+  assert.equal(coreStates().at(-1), "working", "a late native settle report cannot take status back from a running child");
+  const nativeBlocked = "\x1b]7501;state=blocked:app=pi:kind=confirm\x1b\\";
+  for (const chunk of [nativeBlocked, `ordinary output${nativeDone}`]) {
+    assert.equal(process.stdout.write(chunk), true);
+    assert.equal(osc.pop(), chunk, "blocked status and ordinary terminal output pass through unchanged");
+  }
+  core.emit("subagents:completed", { id: "core-a" });
   await flush();
-  assert.deepEqual(coreStates().slice(settleMark), ["done", "working"], "core reclaims status after the native parent settles");
+  assert.equal(osc.at(-1), nativeDone, "child completion restores the exact native report");
+  core.emit("subagents:started", { id: "core-a" });
+  await flush();
 
   await core.fire("agent_start", {});
   const parentMark = osc.length;
@@ -188,7 +201,7 @@ try {
   await core.fire("agent_settled", { aborted: false }, { isIdle: () => true });
   process.stdout.write("\x1b]7501;state=done:app=pi\x1b\\");
   await flush();
-  assert.deepEqual(coreStates().slice(replyMark), ["done", "working"], "children keep working after the main's reply");
+  assert.deepEqual(coreStates().slice(replyMark), ["working", "working"], "children keep working after the main's reply");
   const childrenMark = osc.length;
   core.emit("subagents:completed", { id: "core-b" });
   await flush();
@@ -196,6 +209,8 @@ try {
   core.emit("subagents:failed", { id: "core-c" });
   await flush();
   assert.equal(coreStates().at(-1), "done", "the last failed or completed child restores the parent's done status");
+  await core.fire("session_shutdown", {});
+  assert.equal(process.stdout.write, capture, "shutdown restores the original terminal writer");
 
   // Deferred writes must re-check priority: a dialog or new main run can
   // start between the lifecycle event and the scheduled terminal write.
