@@ -40,7 +40,7 @@ Default to one agent; explicit delegation requests take precedence. Otherwise, d
 - Use clear control flow, focused functions, and explicit data flow. Lead with contracts, invariants, and error paths; make illegal states unrepresentable where practical.
 - Follow project documentation conventions. Explain public APIs, non-trivial behavior, inputs/outputs, side effects, errors, and constraints where names/types are insufficient. Comments explain reasons, not obvious operations.
 - Keep lasting rationale beside code or in design docs; change-specific review explanations belong in temporary context. Read-only reviews flag gaps without editing.
-- Define verifiable success criteria; prefer failing-test-first. Non-trivial logic needs a runnable check; trivial one-liners need no new test.
+- Define verifiable success criteria; prefer failing-test-first. Give non-trivial logic a runnable check. For risky changes, try to disprove the key assumption with one focused check.
 - Preserve the requested regression test; do not weaken it to pass. Require coverage evidence before deleting tests. Keep runtime-validation tests for untrusted inputs despite static types; never cut coverage to meet size guidance.
 - Name tests as readable sentences; each must be able to fail.
 - Run repository-required tests, lint, type-check, and build before declaring completion; use the smallest sufficient scope.
@@ -50,16 +50,12 @@ Default to one agent; explicit delegation requests take precedence. Otherwise, d
 <hitl_review>
 Use Plannotator for consequential human decisions or explicitly requested reviews, not routine work. Do not spawn or switch into plan mode.
 
-- Gate unresolved requirements, material scope/architecture trade-offs, breaking public contracts, or consequential data-loss, security, or irreversible decisions needing human judgment. Touching a sensitive file alone is not a trigger. Use chat for simple clarifications.
-- Approval never waives the Definition of Done, acceptance criteria, required checks, or known blockers. Never offer "approve anyway" for failed work; changed requirements need an explicit spec amendment and fresh verification.
-- Batch related decisions; reuse approval while scope and assumptions hold. Reopen only for material changes or new risks. Runner-managed phases own sign-off; preserve required gates without duplicating them.
-- State rejection criteria; wait for human approval before dependent work. Never self-approve. Feedback-only annotation is only for requested feedback, not sign-off.
-- Re-review changes against the last human-reviewed revision, not automatically `HEAD`. For large specs, show a unified diff or changed-section excerpt, never the whole spec again. Include only the surrounding context and dependencies needed to judge the change.
-- Review context: start in plain language with what happened, what will change, and what decision is needed. Explain why it matters and what approval does and does not authorize. Define unfamiliar terms on first use; give a concrete example if the decision is hard to picture. Put trade-offs, implementation details, and evidence after the overview. Prefer high-level notes over inline; one idea per note; cite intent and mark inference. Show only the relevant context and omit unchanged sections.
-- Agent annotations: label `Agent context`, include machine-readable source and `AGENT CONTEXT` prefix, and record IDs/texts/revision. These are not human feedback or authorization to edit. Preserve human edits and external feedback; never seed auto-approval gates without provenance guarantees.
-- Use the Plannotator skill for tool/CLI routing. Only end the turn after launch if the review tool explicitly delivers the outcome directly back to the agent that owns the review. Opening a browser or saving stdout is not a callback.
-- For CLI reviews, announce what to review, then run `plannotator annotate <file> --gate --json` or `plannotator review --patch-file <patch> --gate --json` in a blocking tool call in the foreground of the agent that owns the review. Use no timeout if supported, otherwise at least 1800s. Never detach it with `&`, `nohup`, or a background shell task, send a final reply while it is waiting for input, or cancel mid-review. Use `--no-git-remote-check` when remote authentication is interactive.
-- Read the returned JSON in the same turn. Branch on `decision` (`approved`/`annotated`/`dismissed`), not message wording. On `annotated`, read and address the feedback before proceeding. Dismissal, abort, or no decision is not approval. If interrupted, recover any saved result on resume before reopening or continuing.
+- Gate unresolved requirements, material scope or architecture trade-offs, breaking contracts, and consequential data-loss, security, or irreversible choices. A sensitive file alone is not a trigger; use chat for simple clarifications.
+- Batch decisions; reopen only for material scope or assumption changes or new risks. Preserve runner-owned sign-off without duplicating it.
+- Lead with the decision, its consequences, what approval authorizes, and when to reject. Wait before dependent work; never self-approve. Feedback is not sign-off. Approval cannot waive criteria, required checks, or blockers; changed requirements need an explicit amendment and fresh verification.
+- Re-review against the last human-reviewed revision, not automatically `HEAD`. Show only the relevant diff or changed sections. If a statechart clarifies a consequential transition, show intent beside observed behavior; cite the checked revision and label unverified paths.
+- Label agent notes `Agent context` with machine-readable source and `AGENT CONTEXT` prefix; record IDs, texts, and revision. Preserve human edits and feedback. Agent notes are not authorization; never seed auto-approval gates without reliable provenance.
+- Read the Plannotator skill before opening a review. The review owner must wait for the actual decision unless the tool explicitly delivers it back to that owner. Dismissal or no decision is not approval.
 </hitl_review>
 
 <communication>
