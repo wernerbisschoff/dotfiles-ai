@@ -22,7 +22,7 @@
   },
   "theme": "light",
   "quietStartup": true,
-  "lastChangelogVersion": "1.5.1",
+  "lastChangelogVersion": "1.6.0",
   "packages": [
     "npm:pi-hashline-context-edit",
     "npm:pi-paster",
@@ -31,7 +31,8 @@
     "npm:billion-context-pi-lean",
     "npm:pi-lens",
     "npm:@ssk_dev/pi-web-access-lean",
-    "npm:@ssk_dev/pi-subagents-lean"
+    "npm:@ssk_dev/pi-subagents-lean",
+    "npm:@zenspc/pi-pstack"
   ],
   "treeFilterMode": "user-only",
   "hideThinkingBlock": true,
@@ -42,7 +43,12 @@
 {{- if ne $shellPath "" }}
   "shellPath": {{ $shellPath | quote }},
 {{- end }}
-  "selfUpdateCommand": ["mise", "use", "-g", "npm:{packageName}@{version}"],
+  "selfUpdateCommand": [
+    "mise",
+    "use",
+    "-g",
+    "npm:{packageName}@{version}"
+  ],
   "extensionChangelogVersions": {
     "{\"source\":\"npm:pi-lens\",\"scope\":\"user\"}": "4.4.11"
   }
